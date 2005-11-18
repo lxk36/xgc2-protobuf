@@ -1,7 +1,7 @@
 schema: xgc2.product.v1
 id: xgc2-protobuf
 name: XGC2 Protocol Schemas
-version: 0.5.0-5
+version: 0.5.0-6
 kind: toolchain-apt
 summary: Versioned XGC2 capability-first Adapter Runtime Link schemas, semantic payloads,
   descriptors, and registries for language-neutral protocol development.
@@ -42,6 +42,6 @@ release:
   workflow: release.yml
   ci_workflow: ci.yml
   apt_versions:
-    focal: 0.5.0-5~focal
-    jammy: 0.5.0-5~jammy
-    noble: 0.5.0-5~noble
+    focal: 0.5.0-6~focal
+    jammy: 0.5.0-6~jammy
+    noble: 0.5.0-6~noble
