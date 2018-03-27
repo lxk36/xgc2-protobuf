@@ -1,39 +1,47 @@
 schema: xgc2.product.v1
 id: xgc2-protobuf
 name: XGC2 Protocol Schemas
-version: 0.5.0-3
+version: 0.5.0-4
 kind: toolchain-apt
-summary: Versioned XGC2 capability-first Adapter Runtime Link schemas, semantic
-  payloads, descriptors, and registries for language-neutral protocol development.
+summary: Versioned XGC2 capability-first Adapter Runtime Link schemas, semantic payloads,
+  descriptors, and registries for language-neutral protocol development.
 apt:
   distribution: focal,jammy,noble
   install:
-    - xgc2-protobuf-dev
+  - xgc2-protobuf-dev
   packages:
-    - xgc2-protobuf-dev
+  - xgc2-protobuf-dev
   depends:
-    - protobuf-compiler
+  - protobuf-compiler
 usage:
-  install: |
-    sudo apt update
+  install: 'sudo apt update
+
     sudo apt install xgc2-protobuf-dev
-  smoke_test: |
-    cmake --find-package -DNAME=xgc2_protobuf -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST
+
+    '
+  smoke_test: 'cmake --find-package -DNAME=xgc2_protobuf -DCOMPILER_ID=GNU -DLANGUAGE=CXX
+    -DMODE=EXIST
+
     pkg-config --variable=proto_root xgc2-protobuf
-  notes: |
-    This package installs schema sources and language-neutral discovery metadata only.
+
+    '
+  notes: 'This package installs schema sources and language-neutral discovery metadata
+    only.
+
     Consumers generate or own their language runtime bindings explicitly.
+
+    '
 ownership:
   paths:
-    - /usr/share/xgc2-protobuf
-    - /usr/share/cmake/xgc2_protobuf
-    - /usr/share/pkgconfig/xgc2-protobuf.pc
+  - /usr/share/xgc2-protobuf
+  - /usr/share/cmake/xgc2_protobuf
+  - /usr/share/pkgconfig/xgc2-protobuf.pc
 release:
   repository: lxk36/xgc2-protobuf
   ref: master
   workflow: release.yml
   ci_workflow: ci.yml
   apt_versions:
-    focal: 0.5.0-3~focal
-    jammy: 0.5.0-3~jammy
-    noble: 0.5.0-3~noble
+    focal: 0.5.0-4~focal
+    jammy: 0.5.0-4~jammy
+    noble: 0.5.0-4~noble
