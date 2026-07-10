@@ -21,7 +21,7 @@ gofmt -w \
 
 (
   cd "${root_dir}/generated/go"
-  GOPROXY=off go test ./...
+  GOPROXY="${XGC2_GO_PROXY:-off}" go test ./...
 )
 
 PYTHONPATH="${root_dir}/generated/python" \
