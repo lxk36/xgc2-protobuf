@@ -1,0 +1,69 @@
+version: 1
+
+# IDs are global and never reused. Payload definitions are semantic XGC2
+# messages, not copies of native ROS message types.
+messages:
+  - id: 1001
+    type: xgc.semantic.common.v1.MotionVelocitySetpoint
+    version: 1
+    roles: [control]
+
+  - id: 2001
+    type: xgc.semantic.common.v1.PoseEstimate
+    version: 1
+    roles: [telemetry]
+
+  - id: 2002
+    type: xgc.semantic.common.v1.VelocityEstimate
+    version: 1
+    roles: [telemetry]
+
+  - id: 2003
+    type: xgc.semantic.common.v1.ImuEstimate
+    version: 1
+    roles: [telemetry]
+
+  - id: 2004
+    type: xgc.semantic.common.v1.PowerStatus
+    version: 1
+    roles: [telemetry]
+
+  - id: 2005
+    type: xgc.semantic.common.v1.VehicleHealth
+    version: 1
+    roles: [telemetry]
+
+  - id: 2010
+    type: xgc.semantic.common.v1.ChannelHealth
+    version: 1
+    roles: [diagnostic]
+
+  - id: 3001
+    type: xgc.semantic.aerial.v1.FlightStatus
+    version: 1
+    roles: [telemetry]
+
+  - id: 3101
+    type: xgc.semantic.aerial.v1.FlightArmRequest
+    version: 1
+    roles: [request]
+
+  - id: 3111
+    type: xgc.semantic.aerial.v1.FlightModeRequest
+    version: 1
+    roles: [request]
+
+  - id: 3121
+    type: xgc.semantic.aerial.v1.TakeoffRequest
+    version: 1
+    roles: [request]
+
+  - id: 3131
+    type: xgc.semantic.aerial.v1.LandRequest
+    version: 1
+    roles: [request]
+
+  - id: 3199
+    type: xgc.semantic.aerial.v1.FlightCommandResult
+    version: 1
+    roles: [response]

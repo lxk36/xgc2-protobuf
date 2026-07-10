@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package xgc.v1;
+
+option go_package = "xgc2/protocols/xgc/v1;xgcv1";
+
+// ClockDomain identifies how TimePoint.nanoseconds must be interpreted.
+enum ClockDomain {
+  CLOCK_DOMAIN_UNSPECIFIED = 0;
+  CLOCK_DOMAIN_UNIX = 1;
+  CLOCK_DOMAIN_ROS = 2;
+  CLOCK_DOMAIN_SIMULATION = 3;
+  CLOCK_DOMAIN_STEADY = 4;
+}
+
+enum PayloadEncoding {
+  PAYLOAD_ENCODING_UNSPECIFIED = 0;
+  PAYLOAD_ENCODING_PROTOBUF = 1;
+}
+
+message TimePoint {
+  sfixed64 nanoseconds = 1;
+  ClockDomain clock_domain = 2;
+}
+
+// Message is the stable, direction-neutral XGC2 message envelope.
+//
+// payload contains a serialized semantic protobuf message selected by
+// message_id. This package does not need to know that concrete type.
+message Message {
+  string robot_id = 1;
+  string channel_id = 2;
+  uint64 sequence = 3;
+
+  TimePoint source_time = 4;
+  sfixed64 observed_unix_nanos = 5;
+
+  uint32 message_id = 6;
+  uint32 schema_version = 7;
+  fixed64 schema_fingerprint = 8;
+  PayloadEncoding encoding = 9;
+  bytes payload = 10;
+}

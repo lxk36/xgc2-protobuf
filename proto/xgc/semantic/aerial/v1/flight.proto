@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package xgc.semantic.aerial.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/aerial/v1;aerialv1";
+
+message FlightStatus {
+  bool connected = 1;
+  bool armed = 2;
+  string mode = 3;
+  uint32 system_status = 4;
+  uint32 landed_state = 5;
+}
+
+message FlightArmRequest {
+  bool arm = 1;
+}
+
+message FlightModeRequest {
+  string mode = 1;
+}
+
+// valid_fields indicates which optional native coordinates are meaningful.
+message TakeoffRequest {
+  uint32 valid_fields = 1;
+  double altitude_m = 2;
+  double yaw_rad = 3;
+  double latitude_deg = 4;
+  double longitude_deg = 5;
+  double minimum_pitch_rad = 6;
+}
+
+message LandRequest {
+  uint32 valid_fields = 1;
+  double altitude_m = 2;
+  double yaw_rad = 3;
+  double latitude_deg = 4;
+  double longitude_deg = 5;
+}
+
+message FlightCommandResult {
+  bool accepted = 1;
+  uint32 native_result = 2;
+  string detail = 3;
+  string observed_mode = 4;
+  bool observed_armed = 5;
+}

@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package xgc.semantic.common.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/common/v1;commonv1";
+
+import "xgc/semantic/common/v1/types.proto";
+
+// valid_axes is a bit mask: linear XYZ use bits 0..2 and angular XYZ use
+// bits 3..5. The adapter rejects unsupported requested axes.
+message MotionVelocitySetpoint {
+  string frame_id = 1;
+  uint32 valid_axes = 2;
+  Vector3 linear = 3;
+  Vector3 angular = 4;
+}

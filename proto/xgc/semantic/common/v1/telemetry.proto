@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package xgc.semantic.common.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/common/v1;commonv1";
+
+import "xgc/semantic/common/v1/types.proto";
+
+message PoseEstimate {
+  string frame_id = 1;
+  string child_frame_id = 2;
+  Vector3 position = 3;
+  Quaternion orientation = 4;
+  repeated double covariance = 5;
+}
+
+message VelocityEstimate {
+  string frame_id = 1;
+  Vector3 linear = 2;
+  Vector3 angular = 3;
+  repeated double covariance = 4;
+}
+
+message ImuEstimate {
+  string frame_id = 1;
+  Quaternion orientation = 2;
+  Vector3 angular_velocity = 3;
+  Vector3 linear_acceleration = 4;
+  repeated double orientation_covariance = 5;
+  repeated double angular_velocity_covariance = 6;
+  repeated double linear_acceleration_covariance = 7;
+}
+
+message PowerStatus {
+  double percentage = 1;
+  double voltage_v = 2;
+  double current_a = 3;
+  double temperature_c = 4;
+  bool charging = 5;
+}
+
+message VehicleHealth {
+  bool online = 1;
+  string summary = 2;
+  repeated Fault faults = 3;
+}
+
+message ChannelHealth {
+  string channel_id = 1;
+  double source_rate_hz = 2;
+  double output_rate_hz = 3;
+  uint64 dropped_samples = 4;
+  uint64 source_age_ms = 5;
+  bool stale = 6;
+}

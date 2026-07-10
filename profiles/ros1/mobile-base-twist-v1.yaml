@@ -1,0 +1,34 @@
+profile: mobile-base.twist.v1
+native_protocol: ros1
+
+channels:
+  - id: state.pose
+    kind: stream_out
+    output_message_id: 2001
+    processor: common.pose_estimate
+    output_rate_hz: 10
+    inputs:
+      pose:
+        name: pose
+        type: geometry_msgs/PoseStamped
+
+  - id: state.velocity
+    kind: stream_out
+    output_message_id: 2002
+    processor: common.velocity_estimate
+    output_rate_hz: 10
+    inputs:
+      velocity:
+        name: twist
+        type: geometry_msgs/TwistStamped
+
+  - id: control.velocity
+    kind: stream_in
+    input_message_id: 1001
+    processor: mobile_base.twist
+    output:
+      name: cmd_vel
+      type: geometry_msgs/Twist
+    policy:
+      publish_rate_hz: 20
+      deadman_timeout_ms: 500

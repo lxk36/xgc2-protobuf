@@ -1,0 +1,177 @@
+syntax = "proto3";
+
+package xgc.adapter.v1;
+
+option go_package = "xgc2/protocols/xgc/adapter/v1;adapterv1";
+
+import "xgc/v1/message.proto";
+
+// AdapterLink is hosted by Go Core. A C++ or Python adapter connects as a
+// client, uploads telemetry, and keeps StreamOperations open for commands and
+// native request/response operations.
+service AdapterLink {
+  rpc RegisterAdapter(RegisterAdapterRequest) returns (RegisterAdapterResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc GetAdapterPlan(GetAdapterPlanRequest) returns (AdapterPlan);
+  rpc PushTelemetry(TelemetryBatch) returns (BatchAck);
+  rpc StreamOperations(OperationStreamRequest) returns (stream OperationRequest);
+  rpc ReportOperationEvents(OperationEventBatch) returns (BatchAck);
+}
+
+enum ChannelKind {
+  CHANNEL_KIND_UNSPECIFIED = 0;
+  CHANNEL_KIND_STREAM_OUT = 1;       // Adapter produces semantic messages.
+  CHANNEL_KIND_STREAM_IN = 2;        // Adapter consumes semantic messages.
+  CHANNEL_KIND_REQUEST_RESPONSE = 3; // Adapter consumes a request and replies.
+}
+
+message ChannelAdvertisement {
+  string channel_id = 1;
+  ChannelKind kind = 2;
+  uint32 input_message_id = 3;
+  uint32 output_message_id = 4;
+}
+
+message RobotAdvertisement {
+  string robot_id = 1;
+  string profile_id = 2;
+  repeated ChannelAdvertisement channels = 3;
+}
+
+message RegisterAdapterRequest {
+  string adapter_id = 1;
+  string native_protocol = 2;
+  string software_version = 3;
+  repeated uint32 supported_protocol_versions = 4;
+  fixed64 registry_fingerprint = 5;
+  repeated RobotAdvertisement robots = 6;
+}
+
+message RegisterAdapterResponse {
+  bool accepted = 1;
+  string core_id = 2;
+  string session_id = 3;
+  uint32 selected_protocol_version = 4;
+  fixed64 registry_fingerprint = 5;
+  uint64 plan_revision = 6;
+  uint32 heartbeat_interval_ms = 7;
+  uint32 max_batch_bytes = 8;
+  string message = 9;
+}
+
+message HeartbeatRequest {
+  string adapter_id = 1;
+  string session_id = 2;
+  sfixed64 observed_unix_nanos = 3;
+  uint64 applied_plan_revision = 4;
+}
+
+message HeartbeatResponse {
+  bool accepted = 1;
+  sfixed64 core_unix_nanos = 2;
+  uint64 current_plan_revision = 3;
+  bool reload_plan = 4;
+}
+
+message GetAdapterPlanRequest {
+  string adapter_id = 1;
+  string session_id = 2;
+  uint64 known_revision = 3;
+}
+
+message EnabledChannel {
+  string channel_id = 1;
+  bool enabled = 2;
+  map<string, string> parameters = 3;
+}
+
+message RobotPlan {
+  string robot_id = 1;
+  string profile_id = 2;
+  map<string, string> parameters = 3;
+  repeated EnabledChannel channels = 4;
+}
+
+message AdapterPlan {
+  bool accepted = 1;
+  uint64 revision = 2;
+  repeated RobotPlan robots = 3;
+  string message = 4;
+}
+
+message TelemetryBatch {
+  string adapter_id = 1;
+  string session_id = 2;
+  uint64 batch_id = 3;
+  repeated xgc.v1.Message messages = 4;
+}
+
+enum ResultCode {
+  RESULT_CODE_UNSPECIFIED = 0;
+  RESULT_CODE_OK = 1;
+  RESULT_CODE_INVALID_ARGUMENT = 2;
+  RESULT_CODE_UNSUPPORTED = 3;
+  RESULT_CODE_NOT_FOUND = 4;
+  RESULT_CODE_NOT_READY = 5;
+  RESULT_CODE_REJECTED = 6;
+  RESULT_CODE_TIMEOUT = 7;
+  RESULT_CODE_TRANSPORT_ERROR = 8;
+  RESULT_CODE_INTERNAL = 9;
+}
+
+message ItemError {
+  uint32 index = 1;
+  ResultCode code = 2;
+  string detail = 3;
+}
+
+message BatchAck {
+  bool accepted = 1;
+  uint64 batch_id = 2;
+  uint32 accepted_count = 3;
+  uint32 rejected_count = 4;
+  repeated ItemError errors = 5;
+}
+
+message OperationStreamRequest {
+  string adapter_id = 1;
+  string session_id = 2;
+  repeated string robot_ids = 3;
+}
+
+message OperationRequest {
+  string operation_id = 1;
+  sfixed64 issued_unix_nanos = 2;
+  sfixed64 deadline_unix_nanos = 3;
+  uint32 ttl_ms = 4;
+  uint64 plan_revision = 5;
+  xgc.v1.Message message = 6;
+}
+
+enum OperationPhase {
+  OPERATION_PHASE_UNSPECIFIED = 0;
+  OPERATION_PHASE_ACCEPTED = 1;
+  OPERATION_PHASE_STARTED = 2;
+  OPERATION_PHASE_SUCCEEDED = 3;
+  OPERATION_PHASE_REJECTED = 4;
+  OPERATION_PHASE_FAILED = 5;
+  OPERATION_PHASE_EXPIRED = 6;
+  OPERATION_PHASE_CANCELED = 7;
+}
+
+message OperationEvent {
+  string operation_id = 1;
+  OperationPhase phase = 2;
+  ResultCode code = 3;
+  sfixed64 occurred_unix_nanos = 4;
+  string detail = 5;
+  int32 native_code = 6;
+  xgc.v1.Message response = 7;
+}
+
+message OperationEventBatch {
+  string adapter_id = 1;
+  string session_id = 2;
+  uint64 batch_id = 3;
+  repeated OperationEvent events = 4;
+}

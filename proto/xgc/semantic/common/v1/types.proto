@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package xgc.semantic.common.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/common/v1;commonv1";
+
+message Vector3 {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+message Quaternion {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+  double w = 4;
+}
+
+message Fault {
+  string code = 1;
+  string summary = 2;
+  uint32 severity = 3;
+}

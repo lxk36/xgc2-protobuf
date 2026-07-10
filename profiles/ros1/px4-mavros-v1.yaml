@@ -1,0 +1,105 @@
+profile: px4.mavros.v1
+native_protocol: ros1
+
+# Native ROS details stay in the adapter profile. Go Core works with the
+# channel IDs and semantic message IDs advertised by the adapter.
+channels:
+  - id: state.pose
+    kind: stream_out
+    output_message_id: 2001
+    processor: px4.pose_estimate
+    output_rate_hz: 10
+    inputs:
+      pose:
+        name: mavros/local_position/pose
+        type: geometry_msgs/PoseStamped
+
+  - id: state.velocity
+    kind: stream_out
+    output_message_id: 2002
+    processor: px4.velocity_estimate
+    output_rate_hz: 10
+    inputs:
+      velocity:
+        name: mavros/local_position/velocity_local
+        type: geometry_msgs/TwistStamped
+
+  - id: state.imu
+    kind: stream_out
+    output_message_id: 2003
+    processor: px4.imu_estimate
+    output_rate_hz: 10
+    inputs:
+      imu:
+        name: mavros/imu/data
+        type: sensor_msgs/Imu
+
+  - id: state.power
+    kind: stream_out
+    output_message_id: 2004
+    processor: px4.power_status
+    output_rate_hz: 1
+    inputs:
+      battery:
+        name: mavros/battery
+        type: sensor_msgs/BatteryState
+
+  - id: state.flight
+    kind: stream_out
+    output_message_id: 3001
+    processor: px4.flight_status
+    output_rate_hz: 2
+    inputs:
+      state:
+        name: mavros/state
+        type: mavros_msgs/State
+      extended_state:
+        name: mavros/extended_state
+        type: mavros_msgs/ExtendedState
+
+  - id: control.velocity
+    kind: stream_in
+    input_message_id: 1001
+    processor: px4.position_target
+    output:
+      name: mavros/setpoint_raw/local
+      type: mavros_msgs/PositionTarget
+    policy:
+      publish_rate_hz: 20
+      deadman_timeout_ms: 500
+
+  - id: flight.arm
+    kind: request_response
+    input_message_id: 3101
+    output_message_id: 3199
+    processor: px4.arm
+    service:
+      name: mavros/cmd/arming
+      type: mavros_msgs/CommandBool
+
+  - id: flight.set_mode
+    kind: request_response
+    input_message_id: 3111
+    output_message_id: 3199
+    processor: px4.set_mode
+    service:
+      name: mavros/set_mode
+      type: mavros_msgs/SetMode
+
+  - id: flight.takeoff
+    kind: request_response
+    input_message_id: 3121
+    output_message_id: 3199
+    processor: px4.takeoff
+    service:
+      name: mavros/cmd/takeoff
+      type: mavros_msgs/CommandTOL
+
+  - id: flight.land
+    kind: request_response
+    input_message_id: 3131
+    output_message_id: 3199
+    processor: px4.land
+    service:
+      name: mavros/cmd/land
+      type: mavros_msgs/CommandTOL

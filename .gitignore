@@ -1,0 +1,8 @@
+generated/
+dist/
+.tools/
+*.deb
+*.whl
+node_modules/
+__pycache__/
+*.pyc
