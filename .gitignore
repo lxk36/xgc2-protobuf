@@ -1,5 +1,7 @@
 generated/
 dist/
+.ci/
+debs/
 .tools/
 *.deb
 *.whl

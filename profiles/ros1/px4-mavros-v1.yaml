@@ -68,38 +68,18 @@ channels:
       publish_rate_hz: 20
       deadman_timeout_ms: 500
 
-  - id: flight.arm
+  # Command-level MAVLink pass-through. Arm/disarm and mode changes are
+  # MAV_CMD_COMPONENT_ARM_DISARM (400) and MAV_CMD_DO_SET_MODE (176), not
+  # separate XGC2 payload types. The profile whitelist prevents arbitrary
+  # safety-critical MAV_CMD values from being forwarded.
+  - id: mavlink.command_long
     kind: request_response
-    input_message_id: 3101
-    output_message_id: 3199
-    processor: px4.arm
+    input_message_id: 5001
+    output_message_id: 5099
+    processor: mavros.command_long
     service:
-      name: mavros/cmd/arming
-      type: mavros_msgs/CommandBool
-
-  - id: flight.set_mode
-    kind: request_response
-    input_message_id: 3111
-    output_message_id: 3199
-    processor: px4.set_mode
-    service:
-      name: mavros/set_mode
-      type: mavros_msgs/SetMode
-
-  - id: flight.takeoff
-    kind: request_response
-    input_message_id: 3121
-    output_message_id: 3199
-    processor: px4.takeoff
-    service:
-      name: mavros/cmd/takeoff
-      type: mavros_msgs/CommandTOL
-
-  - id: flight.land
-    kind: request_response
-    input_message_id: 3131
-    output_message_id: 3199
-    processor: px4.land
-    service:
-      name: mavros/cmd/land
-      type: mavros_msgs/CommandTOL
+      name: mavros/cmd/command
+      type: mavros_msgs/CommandLong
+    policy:
+      allow_broadcast: false
+      allowed_commands: [176, 400]

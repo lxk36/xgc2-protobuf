@@ -4,22 +4,26 @@ import (
 	"testing"
 
 	"google.golang.org/protobuf/proto"
-	aerialv1 "xgc2/protocols/xgc/semantic/aerial/v1"
+	mavlinkv1 "xgc2/protocols/xgc/mavlink/v1"
 	xgcv1 "xgc2/protocols/xgc/v1"
 )
 
-func TestFlightModeRoundTripThroughMessage(t *testing.T) {
-	payload, err := proto.Marshal(&aerialv1.FlightModeRequest{Mode: "OFFBOARD"})
+func TestMavlinkCommandRoundTripThroughMessage(t *testing.T) {
+	payload, err := proto.Marshal(&mavlinkv1.CommandLongRequest{
+		Command: 176,
+		Param1:  1,
+		Param2:  6,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, ok := Lookup(3111)
+	metadata, ok := Lookup(5001)
 	if !ok {
-		t.Fatal("flight mode message is not registered")
+		t.Fatal("MAVLink command message is not registered")
 	}
 	envelope := &xgcv1.Message{
 		RobotId:           "uav1",
-		ChannelId:         "flight.set_mode",
+		ChannelId:         "mavlink.command_long",
 		MessageId:         metadata.ID,
 		SchemaVersion:     metadata.Version,
 		SchemaFingerprint: metadata.Fingerprint,
@@ -33,9 +37,16 @@ func TestFlightModeRoundTripThroughMessage(t *testing.T) {
 	if err := proto.Unmarshal(envelope.GetPayload(), decoded); err != nil {
 		t.Fatal(err)
 	}
-	request, ok := decoded.(*aerialv1.FlightModeRequest)
-	if !ok || request.GetMode() != "OFFBOARD" {
+	request, ok := decoded.(*mavlinkv1.CommandLongRequest)
+	if !ok || request.GetCommand() != 176 || request.GetParam1() != 1 || request.GetParam2() != 6 {
 		t.Fatalf("unexpected decoded payload: %#v", decoded)
+	}
+	ack, ok := New(5099)
+	if !ok {
+		t.Fatal("MAVLink command ACK is not registered")
+	}
+	if _, ok := ack.(*mavlinkv1.CommandAck); !ok {
+		t.Fatalf("unexpected ACK payload type: %#v", ack)
 	}
 	if _, ok := New(999999); ok {
 		t.Fatal("unknown message ID should stay opaque")

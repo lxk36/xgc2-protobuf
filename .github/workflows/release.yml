@@ -1,0 +1,262 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Expected .xgc2/product.yml version
+        required: true
+        type: string
+      expected_source_sha:
+        description: Expected source commit SHA
+        required: true
+        type: string
+      prepare_action:
+        description: Release-train action
+        required: false
+        default: release
+        type: choice
+        options:
+          - release
+          - compatibility-verify
+      apt_overlay_url:
+        description: Optional release-scoped staging APT base URL
+        required: false
+        default: ""
+        type: string
+      dependency_set_digest:
+        description: SHA256 of the resolved release-train dependency set
+        required: false
+        default: ""
+        type: string
+      run_cpp_quality:
+        description: Run optional C++ quality checks
+        required: true
+        default: false
+        type: boolean
+      run_source_tests:
+        description: Run source generation and cross-language tests
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  XGC2_APT_OVERLAY_URL: ${{ inputs.apt_overlay_url }}
+  XGC2_DEPENDENCY_SET_DIGEST: ${{ inputs.dependency_set_digest }}
+
+jobs:
+  prepare-contract:
+    name: Validate prepare contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release-train inputs
+        env:
+          PREPARE_ACTION: ${{ inputs.prepare_action }}
+          APT_OVERLAY_URL: ${{ inputs.apt_overlay_url }}
+          DEPENDENCY_SET_DIGEST: ${{ inputs.dependency_set_digest }}
+        run: |
+          set -euo pipefail
+          case "${PREPARE_ACTION}" in
+            release|compatibility-verify) ;;
+            *)
+              echo "unsupported prepare_action: ${PREPARE_ACTION}" >&2
+              exit 1
+              ;;
+          esac
+          if [[ -n "${DEPENDENCY_SET_DIGEST}" && ! "${DEPENDENCY_SET_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "dependency_set_digest must be empty or 64 lowercase hex characters" >&2
+            exit 1
+          fi
+          if [[ -n "${APT_OVERLAY_URL}" && ! "${DEPENDENCY_SET_DIGEST}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "apt_overlay_url requires a dependency_set_digest" >&2
+            exit 1
+          fi
+
+  release-guard:
+    needs: prepare-contract
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate immutable release inputs
+        run: |
+          set -euo pipefail
+          product_version="$(awk -F': *' '/^version:[[:space:]]*/ {print $2; exit}' .xgc2/product.yml)"
+          if [[ "${product_version}" != "${{ inputs.expected_version }}" ]]; then
+            echo "product.yml version ${product_version} != expected_version ${{ inputs.expected_version }}" >&2
+            exit 1
+          fi
+          source_sha="$(git rev-parse HEAD)"
+          if [[ "${source_sha}" != "${{ inputs.expected_source_sha }}" ]]; then
+            echo "HEAD ${source_sha} != expected_source_sha ${{ inputs.expected_source_sha }}" >&2
+            exit 1
+          fi
+
+  package-compliance:
+    needs: release-guard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install compliance dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-yaml
+
+      - name: Check whitespace and package contract
+        run: |
+          set -euo pipefail
+          git diff --check HEAD
+          ./.xgc2/scripts/check_package_compliance.sh
+
+  cpp-quality:
+    if: ${{ inputs.run_cpp_quality }}
+    needs: release-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: No standalone C++ quality gate
+        run: echo "Schema-only package has no installed C++ runtime binding to lint."
+
+  source-tests:
+    if: ${{ inputs.run_source_tests }}
+    needs: release-guard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.24.x
+          cache-dependency-path: packaging/go/go.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install C++ and protobuf tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            libgrpc++-dev \
+            libprotobuf-dev \
+            libre2-dev \
+            pkg-config \
+            protobuf-compiler \
+            protobuf-compiler-grpc \
+            python3-venv
+
+      - name: Install pinned generators
+        run: |
+          set -euo pipefail
+          python -m pip install -r requirements/generator.txt
+          tools/install-go-plugins.sh
+
+      - name: Generate and test C++, Go, and Python
+        env:
+          XGC2_GO_PROXY: https://proxy.golang.org,direct
+        run: |
+          set -euo pipefail
+          tools/smoke-test.sh
+
+  deb-build-and-smoke:
+    needs: release-guard
+    name: Debian ${{ matrix.distribution }} (Architecture all)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distribution: focal
+            image: ubuntu:20.04
+          - distribution: jammy
+            image: ubuntu:22.04
+          - distribution: noble
+            image: ubuntu:24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build deb and run installed smoke test
+        run: |
+          set -euo pipefail
+          install -d .ci/build-manifests
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            -e PACKAGE_DISTRIBUTION="${{ matrix.distribution }}" \
+            -e XGC2_APT_OVERLAY_URL="${XGC2_APT_OVERLAY_URL:-}" \
+            "${{ matrix.image }}" \
+            bash -lc '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                ca-certificates \
+                cmake \
+                dpkg-dev \
+                fakeroot \
+                git \
+                make \
+                pkg-config \
+                protobuf-compiler \
+                python3 \
+                python3-protobuf \
+                python3-yaml
+              git config --global --add safe.directory /work
+              ./.xgc2/scripts/check_package_compliance.sh
+              ./.xgc2/scripts/build_deb.sh
+              apt-get install -y ./debs/xgc2-protobuf-dev_*.deb
+              ./.xgc2/scripts/smoke_test_installed.sh
+            '
+
+      - name: Create release-train build manifests
+        run: |
+          set -euo pipefail
+          for architecture in amd64 arm64; do
+            python3 .xgc2/scripts/xgc2_artifact_manifest.py build \
+              --deb-dir debs \
+              --output-dir .ci/build-manifests \
+              --product xgc2-protobuf \
+              --product-version "${{ inputs.expected_version }}" \
+              --distribution "${{ matrix.distribution }}" \
+              --architecture "${architecture}" \
+              --source-sha "${{ inputs.expected_source_sha }}" \
+              --ci-run-id "${GITHUB_RUN_ID}" \
+              --ci-workflow "${GITHUB_WORKFLOW}" \
+              --ci-workflow-ref "${GITHUB_WORKFLOW_REF}"
+          done
+
+      - name: Upload trusted deb artifact
+        if: ${{ inputs.prepare_action == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: xgc2-protobuf-${{ matrix.distribution }}-all
+          path: |
+            debs/*.deb
+            .ci/build-manifests/*.json
+          retention-days: 14
+          include-hidden-files: true

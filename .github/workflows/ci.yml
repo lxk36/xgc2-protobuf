@@ -13,7 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  generate-and-test:
+  source-tests:
+    name: Source generation and cross-language tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -65,3 +66,105 @@ jobs:
           set -euo pipefail
           git diff --check HEAD
           test -z "$(git status --short --untracked-files=no)"
+
+  package-compliance:
+    name: Package compliance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install compliance dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-yaml
+
+      - name: Check whitespace and package contract
+        run: |
+          set -euo pipefail
+          git diff --check HEAD
+          ./.xgc2/scripts/check_package_compliance.sh
+
+  deb-build-and-smoke:
+    name: Debian ${{ matrix.distribution }} (Architecture all)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distribution: focal
+            image: ubuntu:20.04
+          - distribution: jammy
+            image: ubuntu:22.04
+          - distribution: noble
+            image: ubuntu:24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build deb and run installed smoke test
+        run: |
+          set -euo pipefail
+          install -d .ci/build-manifests
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            -e PACKAGE_DISTRIBUTION="${{ matrix.distribution }}" \
+            "${{ matrix.image }}" \
+            bash -lc '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                ca-certificates \
+                cmake \
+                dpkg-dev \
+                fakeroot \
+                git \
+                make \
+                pkg-config \
+                protobuf-compiler \
+                python3 \
+                python3-protobuf \
+                python3-yaml
+              git config --global --add safe.directory /work
+              ./.xgc2/scripts/check_package_compliance.sh
+              ./.xgc2/scripts/build_deb.sh
+              apt-get install -y ./debs/xgc2-protobuf-dev_*.deb
+              ./.xgc2/scripts/smoke_test_installed.sh
+            '
+
+      - name: Create trusted build manifests
+        run: |
+          set -euo pipefail
+          product_version="$(awk -F': *' '/^version:/ {print $2; exit}' .xgc2/product.yml)"
+          for architecture in amd64 arm64; do
+            python3 .xgc2/scripts/xgc2_artifact_manifest.py build \
+              --deb-dir debs \
+              --output-dir .ci/build-manifests \
+              --product xgc2-protobuf \
+              --product-version "${product_version}" \
+              --distribution "${{ matrix.distribution }}" \
+              --architecture "${architecture}" \
+              --source-sha "${GITHUB_SHA}" \
+              --ci-run-id "${GITHUB_RUN_ID}" \
+              --ci-workflow "${GITHUB_WORKFLOW}" \
+              --ci-workflow-ref "${GITHUB_WORKFLOW_REF}"
+          done
+
+      - name: Upload trusted deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xgc2-protobuf-${{ matrix.distribution }}-all
+          path: |
+            debs/*.deb
+            .ci/build-manifests/*.json
+          retention-days: 14
+          include-hidden-files: true

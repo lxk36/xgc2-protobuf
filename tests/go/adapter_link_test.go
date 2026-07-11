@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	mavlinkv1 "xgc2/protocols/xgc/mavlink/v1"
 	registryv1 "xgc2/protocols/xgc/registry/v1"
 	aerialv1 "xgc2/protocols/xgc/semantic/aerial/v1"
 	xgcv1 "xgc2/protocols/xgc/v1"
@@ -53,15 +54,19 @@ func (s *prototypeAdapterLinkServer) StreamOperations(
 	_ *OperationStreamRequest,
 	stream grpc.ServerStreamingServer[OperationRequest],
 ) error {
-	metadata, _ := registryv1.Lookup(3111)
-	payload, _ := proto.Marshal(&aerialv1.FlightModeRequest{Mode: "OFFBOARD"})
+	metadata, _ := registryv1.Lookup(5001)
+	payload, _ := proto.Marshal(&mavlinkv1.CommandLongRequest{
+		Command: 176,
+		Param1:  1,
+		Param2:  6,
+	})
 	return stream.Send(&OperationRequest{
-		OperationId:       "op-mode-1",
+		OperationId:       "op-mavlink-command-1",
 		IssuedUnixNanos:   time.Now().UnixNano(),
 		DeadlineUnixNanos: time.Now().Add(time.Second).UnixNano(),
 		Message: &xgcv1.Message{
 			RobotId:           "uav1",
-			ChannelId:         "flight.set_mode",
+			ChannelId:         "mavlink.command_long",
 			MessageId:         metadata.ID,
 			SchemaVersion:     metadata.Version,
 			SchemaFingerprint: metadata.Fingerprint,
@@ -166,25 +171,49 @@ func TestAdapterLinkEndToEnd(t *testing.T) {
 	if !ok || proto.Unmarshal(operation.GetMessage().GetPayload(), decoded) != nil {
 		t.Fatalf("operation payload could not be decoded: %v", operation)
 	}
-	mode := decoded.(*aerialv1.FlightModeRequest)
-	if mode.GetMode() != "OFFBOARD" {
-		t.Fatalf("unexpected mode request: %v", mode)
+	command := decoded.(*mavlinkv1.CommandLongRequest)
+	if command.GetCommand() != 176 || command.GetParam1() != 1 || command.GetParam2() != 6 {
+		t.Fatalf("unexpected MAVLink command request: %v", command)
 	}
 
+	commandAckMetadata, _ := registryv1.Lookup(5099)
+	commandAckPayload, _ := proto.Marshal(&mavlinkv1.CommandAck{
+		Command:  176,
+		Result:   0,
+		Progress: 255,
+	})
 	eventAck, err := client.ReportOperationEvents(ctx, &OperationEventBatch{
 		AdapterId: "ros1-adapter",
 		SessionId: registered.GetSessionId(),
 		BatchId:   2,
 		Events: []*OperationEvent{{
 			OperationId: operation.GetOperationId(),
-			Phase:       OperationPhase_OPERATION_PHASE_SUCCEEDED,
+			Phase:       OperationPhase_OPERATION_PHASE_ACCEPTED,
 			Code:        ResultCode_RESULT_CODE_OK,
+			Response: &xgcv1.Message{
+				RobotId:           "uav1",
+				ChannelId:         "mavlink.command_long",
+				MessageId:         commandAckMetadata.ID,
+				SchemaVersion:     commandAckMetadata.Version,
+				SchemaFingerprint: commandAckMetadata.Fingerprint,
+				Encoding:          xgcv1.PayloadEncoding_PAYLOAD_ENCODING_PROTOBUF,
+				Payload:           commandAckPayload,
+			},
 		}},
 	})
 	if err != nil || eventAck.GetAcceptedCount() != 1 {
 		t.Fatalf("operation event report failed: response=%v error=%v", eventAck, err)
 	}
-	if event := <-service.events; event.GetOperationId() != "op-mode-1" {
+	event := <-service.events
+	if event.GetOperationId() != "op-mavlink-command-1" || event.GetResponse().GetMessageId() != 5099 {
 		t.Fatalf("unexpected operation event: %v", event)
+	}
+	decodedAck, ok := registryv1.New(event.GetResponse().GetMessageId())
+	if !ok || proto.Unmarshal(event.GetResponse().GetPayload(), decodedAck) != nil {
+		t.Fatalf("operation ACK payload could not be decoded: %v", event)
+	}
+	commandAck := decodedAck.(*mavlinkv1.CommandAck)
+	if commandAck.GetCommand() != 176 || commandAck.GetResult() != 0 || commandAck.GetProgress() != 255 {
+		t.Fatalf("unexpected MAVLink command ACK: %v", commandAck)
 	}
 }

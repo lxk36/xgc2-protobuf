@@ -1,7 +1,14 @@
 version: 1
 
-# IDs are global and never reused. Payload definitions are semantic XGC2
-# messages, not copies of native ROS message types.
+# These IDs appeared in the public prototype before their high-level
+# arm/mode/takeoff/land messages were replaced or removed. They stay reserved
+# so the registry's never-reuse rule remains true even before the first Debian
+# release.
+reserved_ids: [3101, 3111, 3121, 3131, 3199]
+
+# IDs are global and never reused. Payloads are reusable XGC2 semantics or
+# explicitly named protocol-native dialect messages; native ROS message types
+# never become the cross-language contract.
 messages:
   - id: 1001
     type: xgc.semantic.common.v1.MotionVelocitySetpoint
@@ -43,27 +50,12 @@ messages:
     version: 1
     roles: [telemetry]
 
-  - id: 3101
-    type: xgc.semantic.aerial.v1.FlightArmRequest
+  - id: 5001
+    type: xgc.mavlink.v1.CommandLongRequest
     version: 1
     roles: [request]
 
-  - id: 3111
-    type: xgc.semantic.aerial.v1.FlightModeRequest
-    version: 1
-    roles: [request]
-
-  - id: 3121
-    type: xgc.semantic.aerial.v1.TakeoffRequest
-    version: 1
-    roles: [request]
-
-  - id: 3131
-    type: xgc.semantic.aerial.v1.LandRequest
-    version: 1
-    roles: [request]
-
-  - id: 3199
-    type: xgc.semantic.aerial.v1.FlightCommandResult
+  - id: 5099
+    type: xgc.mavlink.v1.CommandAck
     version: 1
     roles: [response]

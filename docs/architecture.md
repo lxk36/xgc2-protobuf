@@ -9,11 +9,13 @@ The prototype deliberately separates three independently evolving layers:
 2. `xgc.adapter.v1.AdapterLink` defines the Go Core to Adapter lifecycle and
    transport flows: registration, plans, telemetry batches, operations, and
    operation events.
-3. Semantic protobuf messages define reusable XGC2 meaning. ROS-specific
-   topics, services, and conversions live in Adapter profiles and processors.
+3. Payload protobuf messages either define reusable XGC2 meaning or an
+   explicitly named protocol-native dialect boundary such as MAVLink command
+   pass-through. ROS-specific topics, services, and conversions live in
+   Adapter profiles and processors.
 
 The message payload uses protobuf binary encoding in this prototype. A new
-semantic message extends the registry and generated language packages without
+payload message extends the registry and generated language packages without
 changing `xgc.v1.Message` or the gRPC service.
 
 ## Runtime flow
@@ -27,14 +29,19 @@ ROS topics
   -> TelemetryBatch
   -> Go Core
 
-Go semantic operation
+Go operation
   -> xgc.v1.Message
   -> OperationRequest stream
-  -> adapter semantic decoder
+  -> adapter payload decoder
   -> ROS publisher or service client
   -> OperationEvent
   -> Go Core
 ```
+
+For MAVLink commands, Go sends `xgc.mavlink.v1.CommandLongRequest`; the ROS1
+profile maps it to `mavros_msgs/CommandLong`, and the Adapter returns the raw
+MAVLink result in `xgc.mavlink.v1.CommandAck`. MAVLink framing remains below
+the Adapter boundary.
 
 One telemetry RPC may contain several independently timestamped semantic
 messages. This avoids both one-proto-per-ROS-message mirroring and a single
@@ -45,6 +52,8 @@ ever-growing robot state aggregate.
 - Unknown telemetry may be transported, recorded, and forwarded as opaque
   bytes.
 - Unknown or unadvertised control messages must be rejected.
+- Protocol-native pass-through commands must also satisfy the selected
+  profile's command whitelist.
 - A message ID is never reused.
 - A breaking payload change gets a new schema version or message ID.
 - Native ROS names and types are not accepted from individual operations;

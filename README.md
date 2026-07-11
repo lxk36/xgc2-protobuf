@@ -10,6 +10,7 @@ owner of the shared protocol.
 proto/xgc/v1/            Stable, direction-neutral Message
 proto/xgc/adapter/v1/    AdapterLink gRPC lifecycle and data flows
 proto/xgc/semantic/      Extensible XGC2 semantic payload messages
+proto/xgc/mavlink/v1/    MAVLink command-level pass-through payloads
 registry/                Global message ID registry
 profiles/                Native Adapter mappings such as PX4/MAVROS
 tools/                   Reproducible generation and validation
@@ -20,8 +21,9 @@ generated/               Generated artifacts; ignored by Git
 The `xgc.v1.Message` envelope carries a `message_id` and protobuf-encoded
 `bytes payload`.
 Generated registries map that ID back to a concrete C++, Go, or Python message
-class. Adding a semantic capability extends the semantic catalog and registry;
-it does not change `xgc.v1.Message` or the Adapter gRPC service.
+class. Adding a semantic capability or protocol-native dialect payload extends
+the payload catalog and registry; it does not change `xgc.v1.Message` or the
+Adapter gRPC service.
 
 See [docs/architecture.md](docs/architecture.md) for the current design
 boundary and [profiles/ros1/px4-mavros-v1.yaml](profiles/ros1/px4-mavros-v1.yaml)
@@ -64,37 +66,76 @@ generated/registry.json
 tools/smoke-test.sh
 ```
 
-The smoke test validates both Adapter profiles and performs the same semantic
-payload round trip in C++, Go, and Python:
+The smoke test validates both Adapter profiles and performs the same payload
+round trip in C++, Go, and Python:
 
 ```text
-FlightModeRequest("OFFBOARD")
+CommandLongRequest(command=176, param1=1, param2=6)
   -> protobuf bytes
-  -> xgc.v1.Message(message_id=3111)
+  -> xgc.v1.Message(message_id=5001)
   -> generated registry
-  -> FlightModeRequest("OFFBOARD")
+  -> CommandLongRequest(MAV_CMD_DO_SET_MODE for PX4 OFFBOARD)
 ```
 
 It also runs an in-memory Go gRPC integration test covering Adapter
 registration, telemetry upload, streamed operations, and operation-result
 reporting.
 
+Arm/disarm and mode selection use the numeric MAVLink command request and ACK
+instead of dedicated XGC2 request messages. See
+[docs/mavlink-command.md](docs/mavlink-command.md).
+
 The current host has an incomplete `/usr/local` gRPC C++ development install,
 so the smoke test compiles the C++ Wire/payload/registry path and separately
 generates the gRPC C++ stubs. A Debian build image must provide a consistent
 gRPC C++ development package before linking the full Adapter service.
 
-## Planned packages
+## Debian schema development package
 
-- C++ headers and libraries through Debian packages
-- Go generated module through a local Debian package
-- Python generated package through a wheel and/or Debian package
+The first published product is `xgc2-protobuf-dev` (`Architecture: all`) for
+Ubuntu Focal, Jammy, and Noble. It provides the stable, language-neutral inputs
+needed by protocol consumers:
 
-TypeScript and other languages are outside the first phase.
+- `.proto` source files under `/usr/share/xgc2-protobuf/proto`;
+- the complete descriptor set under `/usr/share/xgc2-protobuf/descriptors`;
+- the source YAML and generated JSON message registries;
+- Adapter profiles and the protocol design documentation;
+- `find_package(xgc2_protobuf CONFIG)` and `pkg-config xgc2-protobuf`
+  discovery metadata.
+
+Install and inspect the schema root with:
+
+```bash
+sudo apt update
+sudo apt install xgc2-protobuf-dev
+pkg-config --variable=proto_root xgc2-protobuf
+```
+
+The Debian package deliberately does **not** install generated C++, Go, or
+Python bindings. Each consumer generates bindings into its own build tree with
+its pinned toolchain. This prevents a schema package from silently selecting a
+distro-specific protobuf ABI, Python namespace, or Go module version.
+
+## Conflict and migration boundary
+
+`xgc2-protobuf-dev` coexists with Ubuntu's protobuf compiler and development
+packages. It owns only `/usr/share/xgc2-protobuf`, its CMake config directory,
+and its pkg-config file; it does not install files into `/usr/include`, Python
+site-packages, the Go module cache, or a ROS prefix.
+
+Consumers migrating from vendored schemas should depend on
+`xgc2-protobuf-dev`, discover `XGC2_PROTOBUF_PROTO_ROOT` (or the corresponding
+pkg-config variable), and generate bindings in a private build directory.
+Existing generated runtime packages must not be overwritten or claimed by this
+package. A future language-specific runtime package requires a separate name,
+ownership boundary, and compatibility policy.
 
 ## Integration status
 
-This repository currently runs source generation and cross-language tests
-only. It intentionally has no `.xgc2/product.yml`, release workflow, Debian
-publication job, or `xgc2-devops` catalog entry while the protocol is being
-designed.
+This repository is an XGC2 `toolchain-apt` product with product id
+`xgc2-protobuf`. Push CI keeps the existing C++, Go, and Python generation tests
+and runs package compliance and Focal/Jammy/Noble Debian builds in parallel.
+Each successful distro build emits one schema-only deb plus independent amd64
+and arm64 trusted build manifests retained for 14 days. The fallback release
+workflow prepares the same artifacts for the centralized `xgc2-devops` release
+train and never receives APT publication credentials.

@@ -62,6 +62,15 @@ def load_registry(path: Path, files, descriptors) -> Tuple[List[dict], int]:
     if document.get("version") != 1:
         raise ValueError("registry version must be 1")
 
+    reserved_ids = set()
+    for raw in document.get("reserved_ids", []):
+        message_id = int(raw)
+        if message_id <= 0 or message_id in reserved_ids:
+            raise ValueError(
+                "reserved message IDs must be positive and unique: {}".format(message_id)
+            )
+        reserved_ids.add(message_id)
+
     entries = []
     seen_ids = set()
     seen_types = set()
@@ -72,6 +81,8 @@ def load_registry(path: Path, files, descriptors) -> Tuple[List[dict], int]:
         roles = [str(role) for role in raw.get("roles", [])]
         if message_id <= 0 or message_id in seen_ids:
             raise ValueError("message ID must be positive and unique: {}".format(message_id))
+        if message_id in reserved_ids:
+            raise ValueError("message ID is reserved and cannot be reused: {}".format(message_id))
         if full_name in seen_types:
             raise ValueError("message type registered more than once: {}".format(full_name))
         if full_name not in descriptors:
