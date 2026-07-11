@@ -54,7 +54,7 @@ for file in "${required_files[@]}"; do
 done
 
 if ! grep -q '^id: xgc2-protobuf$' .xgc2/product.yml ||
-   ! grep -q '^version: 0.1.0-1$' .xgc2/product.yml ||
+   ! grep -q '^version: 0.1.0-2$' .xgc2/product.yml ||
    ! grep -q '^kind: toolchain-apt$' .xgc2/product.yml; then
   echo "product metadata identity/version/kind is inconsistent" >&2
   exit 1

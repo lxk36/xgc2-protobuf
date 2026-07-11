@@ -28,10 +28,6 @@ endforeach()
 
 if(NOT TARGET xgc2_protobuf::schemas)
   add_library(xgc2_protobuf::schemas INTERFACE IMPORTED)
-  set_property(
-    TARGET xgc2_protobuf::schemas
-    PROPERTY XGC2_PROTOBUF_PROTO_ROOT "${XGC2_PROTOBUF_PROTO_ROOT}"
-  )
 endif()
 
 set(xgc2_protobuf_FOUND TRUE)
