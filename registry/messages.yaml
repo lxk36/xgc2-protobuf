@@ -44,10 +44,35 @@ messages:
     version: 1
     roles: [diagnostic]
 
+  - id: 2011
+    type: xgc.semantic.common.v1.StreamHealthReport
+    version: 1
+    roles: [diagnostic]
+
   - id: 3001
     type: xgc.semantic.aerial.v1.FlightStatus
     version: 1
     roles: [telemetry]
+
+  - id: 3002
+    type: xgc.semantic.aerial.v1.LocalTrajectorySetpoint
+    version: 1
+    roles: [telemetry]
+
+  - id: 3003
+    type: xgc.semantic.aerial.v1.AttitudeSetpoint
+    version: 1
+    roles: [telemetry]
+
+  - id: 3004
+    type: xgc.semantic.aerial.v1.FcuLinkStatus
+    version: 1
+    roles: [diagnostic]
+
+  - id: 3005
+    type: xgc.semantic.aerial.v1.OffboardInputStatus
+    version: 1
+    roles: [diagnostic]
 
   - id: 3201
     type: xgc.semantic.aerial.v1.ArmRequest

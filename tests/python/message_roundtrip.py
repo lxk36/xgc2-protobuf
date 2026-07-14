@@ -12,9 +12,6 @@ def main():
         robot_id="uav1",
         channel_id="operation.mode",
         message_id=metadata["id"],
-        schema_version=metadata["version"],
-        schema_fingerprint=metadata["fingerprint"],
-        encoding=message_pb2.PAYLOAD_ENCODING_PROTOBUF,
         payload=payload,
     )
     decoded = message_registry.new_message(envelope.message_id)

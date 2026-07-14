@@ -27,7 +27,7 @@ it does not change `xgc.v1.Message` or the Adapter gRPC service.
 See [docs/architecture.md](docs/architecture.md) for the design boundary,
 [docs/profile-contract.md](docs/profile-contract.md) for the profile digest
 contract, and
-[profiles/ros1/px4-multirotor-ros1-v1.yaml](profiles/ros1/px4-multirotor-ros1-v1.yaml)
+[profiles/ros1/px4-multirotor-ros1-v2.yaml](profiles/ros1/px4-multirotor-ros1-v2.yaml)
 for the PX4 profile.
 
 ## Generate
@@ -86,8 +86,10 @@ reporting.
 CI runs `buf lint` for every change. Pull requests also run `buf breaking`
 against the target branch when both versions are in the same protocol epoch.
 Before 1.0, a minor-version change starts a deliberate breaking epoch; from
-1.0 onward, only a major-version change does so. Version `0.2.0-1` is the hard
-cut from the unused prototype contract and intentionally starts epoch `0.2`.
+1.0 onward, only a major-version change does so. Version `0.3.0-1` starts a
+deliberate breaking epoch: registry and protobuf encoding are negotiated once
+per Adapter session instead of repeated in every message, and PX4 profile v2
+adds the mocap and Offboard diagnostic contract.
 
 The public contract exposes semantic arm, mode, and normal autopilot-reboot
 requests. Raw MAVLink commands, ROS topic names, ROS service names, and native

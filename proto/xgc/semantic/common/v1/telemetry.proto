@@ -53,3 +53,10 @@ message ChannelHealth {
   uint64 source_age_ms = 5;
   bool stale = 6;
 }
+
+// StreamHealthReport transports one coherent health sample for every stream
+// observed by an Adapter. A single report avoids several entries competing for
+// the same latest-value channel in Core.
+message StreamHealthReport {
+  repeated ChannelHealth channels = 1;
+}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package xgc.semantic.aerial.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/aerial/v1;aerialv1";
+
+import "xgc/semantic/common/v1/types.proto";
+
+message FcuLinkStatus {
+  sfixed64 remote_timestamp_ns = 1;
+  sfixed64 observed_offset_ns = 2;
+  sfixed64 estimated_offset_ns = 3;
+  double round_trip_time_ms = 4;
+}
+
+message OffboardInputStatus {
+  bool ready = 1;
+  string active_setpoint_channel = 2;
+  double source_rate_hz = 3;
+  uint64 source_age_ms = 4;
+  repeated xgc.semantic.common.v1.Fault blockers = 5;
+}

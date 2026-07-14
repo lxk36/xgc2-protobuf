@@ -33,11 +33,13 @@ path, digest algorithm, and raw-byte digest. The registry also contains:
 
 ## Namespace and endpoints
 
-Every v1 profile declares a required `ros_namespace` parameter through
-`namespace_parameter`. Endpoint names in the profile are relative and are
-resolved beneath that namespace by the Adapter. Absolute endpoints are rejected
-by schema validation so Core cannot inject a native ROS endpoint through plan
-parameters.
+Every profile declares a required `ros_namespace` parameter through
+`namespace_parameter`. Endpoint names default to `robot_namespace` scope and
+are resolved beneath that namespace by the Adapter. A profile may declare a
+fixed `global` endpoint and substitute a required, schema-constrained parameter
+as a complete path segment, for example
+`vrpn_client_node/{mocap_rigid_body}/pose`. Absolute endpoint values remain
+unavailable to Core, so a plan cannot inject an arbitrary ROS topic.
 
 ## Channel kinds
 
@@ -50,10 +52,16 @@ parameters.
 - `operation`: Adapter maps a semantic request to a native service and reports
   lifecycle and native result information through `OperationEvent`.
 
-The initial hard-cut catalog contains only:
+The catalog contains:
 
 - `px4.multirotor.ros1.v1`;
+- `px4.multirotor.ros1.v2`;
 - `scout-mini.ros1.v1`.
+
+PX4 profile v2 adds mocap-to-MAVROS vision relay, local and attitude setpoint
+observation, FCU timesync diagnostics, and aggregated stream health. The relay
+preserves the VRPN pose and timestamp exactly, applies no coordinate transform,
+publishes each source sample at most once, and caps output at 50 Hz.
 
 PX4 arm, mode, and normal autopilot restart use semantic message IDs 3201, 3202,
 and 3203. Raw MAVLink commands are not part of the public protocol. Scout Mini

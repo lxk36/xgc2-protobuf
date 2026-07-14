@@ -21,9 +21,6 @@ int main() {
   envelope.set_robot_id("uav1");
   envelope.set_channel_id("operation.mode");
   envelope.set_message_id(metadata->id);
-  envelope.set_schema_version(metadata->version);
-  envelope.set_schema_fingerprint(metadata->fingerprint);
-  envelope.set_encoding(xgc::v1::PAYLOAD_ENCODING_PROTOBUF);
   envelope.set_payload(payload);
 
   std::unique_ptr<google::protobuf::Message> decoded =

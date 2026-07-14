@@ -18,13 +18,10 @@ func TestAerialOperationRoundTripThroughMessage(t *testing.T) {
 		t.Fatal("mode request is not registered")
 	}
 	envelope := &xgcv1.Message{
-		RobotId:           "uav1",
-		ChannelId:         "operation.mode",
-		MessageId:         metadata.ID,
-		SchemaVersion:     metadata.Version,
-		SchemaFingerprint: metadata.Fingerprint,
-		Encoding:          xgcv1.PayloadEncoding_PAYLOAD_ENCODING_PROTOBUF,
-		Payload:           payload,
+		RobotId:   "uav1",
+		ChannelId: "operation.mode",
+		MessageId: metadata.ID,
+		Payload:   payload,
 	}
 	decoded, ok := New(envelope.GetMessageId())
 	if !ok {
@@ -62,5 +59,26 @@ func TestAerialOperationMessagesAreRegistered(t *testing.T) {
 	}
 	if _, ok := New(999999); ok {
 		t.Fatal("unknown message ID should stay opaque")
+	}
+}
+
+func TestPx4DiagnosticMessagesAreRegistered(t *testing.T) {
+	tests := []struct {
+		id      uint32
+		message proto.Message
+	}{
+		{id: 3002, message: &aerialv1.LocalTrajectorySetpoint{}},
+		{id: 3003, message: &aerialv1.AttitudeSetpoint{}},
+		{id: 3004, message: &aerialv1.FcuLinkStatus{}},
+		{id: 3005, message: &aerialv1.OffboardInputStatus{}},
+	}
+	for _, test := range tests {
+		created, ok := New(test.id)
+		if !ok {
+			t.Fatalf("message ID %d is not registered", test.id)
+		}
+		if created.ProtoReflect().Descriptor().FullName() != test.message.ProtoReflect().Descriptor().FullName() {
+			t.Fatalf("message ID %d resolved to %s", test.id, created.ProtoReflect().Descriptor().FullName())
+		}
 	}
 }

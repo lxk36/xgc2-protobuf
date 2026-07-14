@@ -98,13 +98,10 @@ func (s *prototypeAdapterLinkServer) StreamOperations(
 		DeadlineUnixNanos: time.Now().Add(time.Second).UnixNano(),
 		PlanRevision:      7,
 		Message: &xgcv1.Message{
-			RobotId:           "uav1",
-			ChannelId:         "operation.mode",
-			MessageId:         metadata.ID,
-			SchemaVersion:     metadata.Version,
-			SchemaFingerprint: metadata.Fingerprint,
-			Encoding:          xgcv1.PayloadEncoding_PAYLOAD_ENCODING_PROTOBUF,
-			Payload:           payload,
+			RobotId:   "uav1",
+			ChannelId: "operation.mode",
+			MessageId: metadata.ID,
+			Payload:   payload,
 		},
 	})
 }
@@ -197,13 +194,10 @@ func TestAdapterLinkEndToEnd(t *testing.T) {
 		BatchId:      1,
 		PlanRevision: plan.GetRevision(),
 		Messages: []*xgcv1.Message{{
-			RobotId:           "uav1",
-			ChannelId:         "state.flight",
-			MessageId:         statusMetadata.ID,
-			SchemaVersion:     statusMetadata.Version,
-			SchemaFingerprint: statusMetadata.Fingerprint,
-			Encoding:          xgcv1.PayloadEncoding_PAYLOAD_ENCODING_PROTOBUF,
-			Payload:           statusPayload,
+			RobotId:   "uav1",
+			ChannelId: "state.flight",
+			MessageId: statusMetadata.ID,
+			Payload:   statusPayload,
 		}},
 	})
 	if err != nil || !ack.GetAccepted() || ack.GetAcceptedCount() != 1 {

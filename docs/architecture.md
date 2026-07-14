@@ -58,6 +58,8 @@ ever-growing robot-state aggregate.
 ## Plan and operation invariants
 
 - A session is valid only for its server-side runtime binding.
+- Registration selects one exact registry fingerprint for the whole session;
+  per-message schema, fingerprint, and encoding fields are not carried.
 - A plan is accepted atomically; partial robot configuration is invalid.
 - `profile_digest` must equal the lowercase SHA-256 of the complete profile YAML
   raw bytes installed at the Adapter.
@@ -65,7 +67,7 @@ ever-growing robot-state aggregate.
 - Every operation carries the plan revision from which its robot and channel
   authorization were derived.
 - An Adapter rejects operations for an unknown robot, disabled channel, stale
-  plan revision, mismatched schema fingerprint, or unsupported message ID.
+  plan revision, or unsupported message ID.
 - The Core never sends a ROS topic, service, native type, or arbitrary native
   command through an operation.
 

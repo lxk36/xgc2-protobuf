@@ -38,19 +38,34 @@ def main():
     assert re.fullmatch(r"[0-9a-f]{64}", metadata["catalog_digest"])
     assert re.fullmatch(r"[0-9a-f]{64}", metadata["profile_schema_digest"])
     entries = {item["profile_id"]: item for item in metadata["profiles"]}
-    assert set(entries) == {"px4.multirotor.ros1.v1", "scout-mini.ros1.v1"}
+    assert set(entries) == {
+        "px4.multirotor.ros1.v1",
+        "px4.multirotor.ros1.v2",
+        "scout-mini.ros1.v1",
+    }
 
     for entry in entries.values():
         profile_path = profiles_root / entry["file"]
         assert entry["digest"] == hashlib.sha256(profile_path.read_bytes()).hexdigest()
         assert re.fullmatch(r"[0-9a-f]{64}", entry["digest"])
         assert not any(channel.startswith("control.") for channel in entry["channel_ids"])
-        assert "diagnostic.channel-health" in entry["channel_ids"]
+        assert any(
+            channel in entry["channel_ids"]
+            for channel in ("diagnostic.channel-health", "diagnostic.stream-health")
+        )
 
     px4 = entries["px4.multirotor.ros1.v1"]
     assert {"operation.arm", "operation.mode", "operation.autopilot-reboot"}.issubset(
         set(px4["channel_ids"])
     )
+    px4_v2 = entries["px4.multirotor.ros1.v2"]
+    assert {
+        "state.mocap.pose",
+        "setpoint.local",
+        "setpoint.attitude",
+        "diagnostic.fcu-link",
+        "diagnostic.offboard-input",
+    }.issubset(set(px4_v2["channel_ids"]))
     scout = entries["scout-mini.ros1.v1"]
     assert not any(channel.startswith("operation.") for channel in scout["channel_ids"])
 
@@ -84,6 +99,19 @@ def main():
             source_path, absolute_endpoint, schema, messages
         ),
         "schema validation failed",
+    )
+
+    px4_v2_source_path = profiles_root / "ros1" / "px4-multirotor-ros1-v2.yaml"
+    px4_v2_source = yaml.safe_load(px4_v2_source_path.read_text(encoding="utf-8"))
+    undeclared_template = copy.deepcopy(px4_v2_source)
+    undeclared_template["channels"][1]["inputs"]["pose"]["name"] = (
+        "vrpn_client_node/{unknown_body}/pose"
+    )
+    expect_failure(
+        lambda: validate_profiles.validate_profile_document(
+            px4_v2_source_path, undeclared_template, schema, messages
+        ),
+        "endpoint references undeclared parameter unknown_body",
     )
 
     with tempfile.TemporaryDirectory() as directory:

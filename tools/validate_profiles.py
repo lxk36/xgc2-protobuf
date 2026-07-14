@@ -14,6 +14,7 @@ PROFILE_SCHEMA_ID = "xgc2.adapter-profile.v1"
 PROFILE_DIGEST_ALGORITHM = "sha256-raw-bytes"
 KINDS = {"stream_out", "stream_in", "request_response", "operation"}
 INPUT_KINDS = {"stream_in", "request_response", "operation"}
+ENDPOINT_PARAMETER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
 
 
 def parse_args():
@@ -131,6 +132,14 @@ def validate_profile_document(profile_path, document, schema, messages):
             output_message = require_registered_message(messages, channel, "output_message_id", profile_path)
             validate_message_role(profile_path, channel, output_message, "output")
 
+        for endpoint_group in ("inputs",):
+            for endpoint in channel.get(endpoint_group, {}).values():
+                validate_endpoint_parameters(profile_path, document, channel_id, endpoint)
+        for endpoint_name in ("output", "service"):
+            endpoint = channel.get(endpoint_name)
+            if endpoint is not None:
+                validate_endpoint_parameters(profile_path, document, channel_id, endpoint)
+
         seen_channels.add(channel_id)
 
     for channel in document["channels"]:
@@ -153,6 +162,30 @@ def validate_profile_document(profile_path, document, schema, messages):
         "robot_kind": document["robot_kind"],
         "channel_ids": sorted(seen_channels),
     }
+
+
+def validate_endpoint_parameters(profile_path, document, channel_id, endpoint):
+    parameters = document["parameters"]
+    for parameter_name in ENDPOINT_PARAMETER.findall(endpoint["name"]):
+        definition = parameters.get(parameter_name)
+        if definition is None:
+            raise ValueError(
+                "{}: channel {} endpoint references undeclared parameter {}".format(
+                    profile_path, channel_id, parameter_name
+                )
+            )
+        if not definition.get("required"):
+            raise ValueError(
+                "{}: channel {} endpoint parameter {} must be required".format(
+                    profile_path, channel_id, parameter_name
+                )
+            )
+        if definition["type"] not in {"string", "ros_namespace"}:
+            raise ValueError(
+                "{}: channel {} endpoint parameter {} must be a string".format(
+                    profile_path, channel_id, parameter_name
+                )
+            )
 
 
 def validate_profiles(registry_path, profiles_root, schema_path):
