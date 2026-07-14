@@ -4,15 +4,15 @@ Cross-language protocol source of truth for XGC2 Core, robot adapters,
 simulators, and Python tools. ROS1 is a consumer of these contracts, not the
 owner of the shared protocol.
 
-## Prototype shape
+## Contract shape
 
 ```text
 proto/xgc/v1/            Stable, direction-neutral Message
 proto/xgc/adapter/v1/    AdapterLink gRPC lifecycle and data flows
 proto/xgc/semantic/      Extensible XGC2 semantic payload messages
-proto/xgc/mavlink/v1/    MAVLink command-level pass-through payloads
 registry/                Global message ID registry
-profiles/                Native Adapter mappings such as PX4/MAVROS
+profiles/schema/         Formal Adapter profile JSON Schema
+profiles/ros1/           Native Adapter mappings for supported robots
 tools/                   Reproducible generation and validation
 tests/                   C++, Go, and Python round-trip smoke tests
 generated/               Generated artifacts; ignored by Git
@@ -21,13 +21,14 @@ generated/               Generated artifacts; ignored by Git
 The `xgc.v1.Message` envelope carries a `message_id` and protobuf-encoded
 `bytes payload`.
 Generated registries map that ID back to a concrete C++, Go, or Python message
-class. Adding a semantic capability or protocol-native dialect payload extends
-the payload catalog and registry; it does not change `xgc.v1.Message` or the
-Adapter gRPC service.
+class. Adding a semantic capability extends the payload catalog and registry;
+it does not change `xgc.v1.Message` or the Adapter gRPC service.
 
-See [docs/architecture.md](docs/architecture.md) for the current design
-boundary and [profiles/ros1/px4-mavros-v1.yaml](profiles/ros1/px4-mavros-v1.yaml)
-for a concrete PX4 example.
+See [docs/architecture.md](docs/architecture.md) for the design boundary,
+[docs/profile-contract.md](docs/profile-contract.md) for the profile digest
+contract, and
+[profiles/ros1/px4-multirotor-ros1-v1.yaml](profiles/ros1/px4-multirotor-ros1-v1.yaml)
+for the PX4 profile.
 
 ## Generate
 
@@ -35,7 +36,7 @@ Required runtime tools:
 
 - `protoc` and the Protobuf C++ development package
 - `grpc_cpp_plugin`
-- Python `grpcio-tools`, `protobuf`, and `PyYAML`
+- Python `grpcio-tools`, `protobuf`, `jsonschema`, and `PyYAML`
 - pinned `protoc-gen-go` and `protoc-gen-go-grpc`
 
 The Go plugins are installed into the repository-local ignored tool directory:
@@ -58,6 +59,7 @@ generated/go/
 generated/python/
 generated/descriptors/
 generated/registry.json
+generated/profile-registry.json
 ```
 
 ## Verify
@@ -70,20 +72,27 @@ The smoke test validates both Adapter profiles and performs the same payload
 round trip in C++, Go, and Python:
 
 ```text
-CommandLongRequest(command=176, param1=1, param2=6)
+ModeRequest(mode="OFFBOARD")
   -> protobuf bytes
-  -> xgc.v1.Message(message_id=5001)
+  -> xgc.v1.Message(message_id=3202)
   -> generated registry
-  -> CommandLongRequest(MAV_CMD_DO_SET_MODE for PX4 OFFBOARD)
+  -> ModeRequest(mode="OFFBOARD")
 ```
 
 It also runs an in-memory Go gRPC integration test covering Adapter
 registration, telemetry upload, streamed operations, and operation-result
 reporting.
 
-Arm/disarm and mode selection use the numeric MAVLink command request and ACK
-instead of dedicated XGC2 request messages. See
-[docs/mavlink-command.md](docs/mavlink-command.md).
+CI runs `buf lint` for every change. Pull requests also run `buf breaking`
+against the target branch when both versions are in the same protocol epoch.
+Before 1.0, a minor-version change starts a deliberate breaking epoch; from
+1.0 onward, only a major-version change does so. Version `0.2.0-1` is the hard
+cut from the unused prototype contract and intentionally starts epoch `0.2`.
+
+The public contract exposes semantic arm, mode, and normal autopilot-reboot
+requests. Raw MAVLink commands, ROS topic names, ROS service names, and native
+message types are profile implementation details and are never accepted from an
+individual Core operation.
 
 The current host has an incomplete `/usr/local` gRPC C++ development install,
 so the smoke test compiles the C++ Wire/payload/registry path and separately
@@ -99,7 +108,8 @@ needed by protocol consumers:
 - `.proto` source files under `/usr/share/xgc2-protobuf/proto`;
 - the complete descriptor set under `/usr/share/xgc2-protobuf/descriptors`;
 - the source YAML and generated JSON message registries;
-- Adapter profiles and the protocol design documentation;
+- the formal Adapter profile schema, source profiles, generated digest
+  registry, and protocol design documentation;
 - `find_package(xgc2_protobuf CONFIG)` and `pkg-config xgc2-protobuf`
   discovery metadata.
 

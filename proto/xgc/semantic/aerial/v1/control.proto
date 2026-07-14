@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package xgc.semantic.aerial.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/aerial/v1;aerialv1";
+
+// ArmRequest sets the desired autopilot arming state.
+message ArmRequest {
+  bool armed = 1;
+}
+
+// ModeRequest selects a native autopilot mode after the selected Adapter
+// profile has validated and normalized it.
+message ModeRequest {
+  string mode = 1;
+}
+
+// AutopilotRebootRequest requests a normal flight-controller restart.
+message AutopilotRebootRequest {}

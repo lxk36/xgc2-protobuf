@@ -52,6 +52,7 @@ schema_root="${package_root}/usr/share/xgc2-protobuf"
 rm -rf "${generated_dir}" "${work_dir}/pkg" "${output_dir}"
 mkdir -p \
   "${generated_dir}/descriptors" \
+  "${generated_dir}/profiles" \
   "${generated_dir}/registry/cpp" \
   "${generated_dir}/registry/go" \
   "${generated_dir}/registry/python" \
@@ -88,8 +89,14 @@ python3 "${repo_root}/tools/generate_registry.py" \
   --python-out "${generated_dir}/registry/python" \
   --metadata-out "${generated_dir}/registry/registry.json"
 
+python3 "${repo_root}/tools/validate_profiles.py" \
+  --registry "${repo_root}/registry/messages.yaml" \
+  --profiles "${repo_root}/profiles" \
+  --metadata-out "${generated_dir}/profiles/registry.json"
+
 cp -a "${repo_root}/proto" "${schema_root}/proto"
 cp -a "${repo_root}/profiles" "${schema_root}/profiles"
+cp -a "${generated_dir}/profiles/registry.json" "${schema_root}/profiles/"
 cp -a "${generated_dir}/descriptors/xgc2-protocols.pb" "${schema_root}/descriptors/"
 cp -a "${repo_root}/registry/messages.yaml" "${schema_root}/registry/"
 cp -a "${generated_dir}/registry/registry.json" "${schema_root}/registry/"
@@ -125,7 +132,10 @@ test -f "${schema_root}/proto/xgc/adapter/v1/adapter.proto"
 test -f "${schema_root}/descriptors/xgc2-protocols.pb"
 test -f "${schema_root}/registry/messages.yaml"
 test -f "${schema_root}/registry/registry.json"
-test -f "${schema_root}/profiles/ros1/mobile-base-twist-v1.yaml"
+test -f "${schema_root}/profiles/schema/adapter-profile-v1.schema.json"
+test -f "${schema_root}/profiles/ros1/px4-multirotor-ros1-v1.yaml"
+test -f "${schema_root}/profiles/ros1/scout-mini-ros1-v1.yaml"
+test -f "${schema_root}/profiles/registry.json"
 test -f "${package_root}/usr/share/cmake/xgc2_protobuf/xgc2_protobufConfig.cmake"
 test -f "${package_root}/usr/share/pkgconfig/xgc2-protobuf.pc"
 test ! -e "${schema_root}/generated"

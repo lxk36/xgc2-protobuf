@@ -29,12 +29,18 @@ fi
 required_files=(
   README.md
   buf.yaml
+  docs/profile-contract.md
   proto/xgc/v1/message.proto
   proto/xgc/adapter/v1/adapter.proto
+  proto/xgc/semantic/aerial/v1/control.proto
   registry/messages.yaml
-  profiles/ros1/mobile-base-twist-v1.yaml
+  profiles/schema/adapter-profile-v1.schema.json
+  profiles/ros1/px4-multirotor-ros1-v1.yaml
+  profiles/ros1/scout-mini-ros1-v1.yaml
   tools/generate_registry.py
+  tools/check-breaking.sh
   tools/validate_profiles.py
+  tests/python/profile_validation.py
   .github/workflows/ci.yml
   .github/workflows/release.yml
   .xgc2/product.yml
@@ -54,7 +60,7 @@ for file in "${required_files[@]}"; do
 done
 
 if ! grep -q '^id: xgc2-protobuf$' .xgc2/product.yml ||
-   ! grep -q '^version: 0.1.0-2$' .xgc2/product.yml ||
+   ! grep -q '^version: 0.2.0-1$' .xgc2/product.yml ||
    ! grep -q '^kind: toolchain-apt$' .xgc2/product.yml; then
   echo "product metadata identity/version/kind is inconsistent" >&2
   exit 1

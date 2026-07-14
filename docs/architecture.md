@@ -1,70 +1,86 @@
-# XGC2 protocol prototype architecture
+# XGC2 protocol architecture
 
-## Layers
+## Ownership and layers
 
-The prototype deliberately separates three independently evolving layers:
+The protocol product is the only source of truth for the Core-to-Adapter wire
+contract. It separates three independently evolving layers:
 
-1. `xgc.v1.Message` carries routing, time, message identity, and an
-   opaque serialized payload. It is stable and direction-neutral.
-2. `xgc.adapter.v1.AdapterLink` defines the Go Core to Adapter lifecycle and
-   transport flows: registration, plans, telemetry batches, operations, and
-   operation events.
-3. Payload protobuf messages either define reusable XGC2 meaning or an
-   explicitly named protocol-native dialect boundary such as MAVLink command
-   pass-through. ROS-specific topics, services, and conversions live in
-   Adapter profiles and processors.
+1. `xgc.v1.Message` carries routing, time, message identity, and an opaque
+   serialized payload. It is stable and direction-neutral.
+2. `xgc.adapter.v1.AdapterLink` defines registration, session heartbeat, an
+   asset-backed robot plan, telemetry batches, operations, and operation events.
+3. Semantic payload messages define reusable XGC2 meaning. ROS topics,
+   services, message types, conversions, and native command constants exist
+   only in validated Adapter profiles and their processors.
 
-The message payload uses protobuf binary encoding in this prototype. A new
-payload message extends the registry and generated language packages without
-changing `xgc.v1.Message` or the gRPC service.
+The Go Core owns runtime binding and robot truth. A single-use bootstrap token
+associates an Adapter registration with a server-side execution target,
+experiment, orchestration run, swarm asset, and asset revision. None of those
+identifiers are accepted from the Adapter as a replacement source of truth.
+
+An Adapter registers supported profiles and their exact raw-byte digests. It
+does not advertise robot inventory. Core returns the robots selected from the
+bound swarm asset in `AdapterPlan`; every robot entry names a supported profile,
+its digest, and schema-defined parameters. The plan revision and asset digest
+make the applied configuration auditable.
 
 ## Runtime flow
 
 ```text
+Adapter process bootstrap token
+  -> RegisterAdapter(supported profiles and digests)
+  -> authenticated session
+  -> GetAdapterPlan
+  -> asset-backed RobotPlan entries
+  -> Heartbeat(applied plan revision)
+
 ROS topics
-  -> typed C++ callbacks
-  -> adapter cache / synchronization / validation / rate reduction
+  -> typed Adapter callbacks
+  -> cache / synchronization / validation / rate reduction
   -> semantic protobuf payloads
   -> xgc.v1.Message
-  -> TelemetryBatch
+  -> TelemetryBatch(session and plan revision)
   -> Go Core
 
 Go operation
-  -> xgc.v1.Message
-  -> OperationRequest stream
-  -> adapter payload decoder
+  -> validated semantic xgc.v1.Message
+  -> OperationRequest(plan revision)
+  -> Adapter profile processor
   -> ROS publisher or service client
   -> OperationEvent
   -> Go Core
 ```
 
-For MAVLink commands, Go sends `xgc.mavlink.v1.CommandLongRequest`; the ROS1
-profile maps it to `mavros_msgs/CommandLong`, and the Adapter returns the raw
-MAVLink result in `xgc.mavlink.v1.CommandAck`. MAVLink framing remains below
-the Adapter boundary.
-
 One telemetry RPC may contain several independently timestamped semantic
 messages. This avoids both one-proto-per-ROS-message mirroring and a single
-ever-growing robot state aggregate.
+ever-growing robot-state aggregate.
+
+## Plan and operation invariants
+
+- A session is valid only for its server-side runtime binding.
+- A plan is accepted atomically; partial robot configuration is invalid.
+- `profile_digest` must equal the lowercase SHA-256 of the complete profile YAML
+  raw bytes installed at the Adapter.
+- Telemetry and operation-event batches carry the applied plan revision.
+- Every operation carries the plan revision from which its robot and channel
+  authorization were derived.
+- An Adapter rejects operations for an unknown robot, disabled channel, stale
+  plan revision, mismatched schema fingerprint, or unsupported message ID.
+- The Core never sends a ROS topic, service, native type, or arbitrary native
+  command through an operation.
 
 ## Unknown message behavior
 
 - Unknown telemetry may be transported, recorded, and forwarded as opaque
-  bytes.
-- Unknown or unadvertised control messages must be rejected.
-- Protocol-native pass-through commands must also satisfy the selected
-  profile's command whitelist.
-- A message ID is never reused.
-- A breaking payload change gets a new schema version or message ID.
+  bytes only after session, robot, channel, size, and rate validation.
+- Unknown or unadvertised control messages are rejected.
+- A message ID is never reused; removed IDs remain reserved.
+- A breaking payload change receives a new schema version or message ID.
 - Native ROS names and types are not accepted from individual operations;
-  operations reference an advertised channel.
+  operations reference a channel advertised by the selected profile.
 
-## Prototype limitations
+## Data-channel boundary
 
-- Adapter profile YAML is illustrative and does not yet have a formal schema.
-- Registry fingerprints are generated from protobuf descriptors, but package
-  compatibility policy is not frozen.
-- Plan authorization and endpoint override policy still need a threat-model
-  review.
-- Large image, point-cloud, map, and file payloads are intentionally outside
-  this protocol.
+The contract carries structured control, telemetry, health, and diagnostics.
+Large images, point clouds, maps, bags, and files use dedicated streaming or
+artifact transports and are intentionally outside `AdapterLink`.

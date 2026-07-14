@@ -10,8 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
-	mavlinkv1 "xgc2/protocols/xgc/mavlink/v1"
-	registryv1 "xgc2/protocols/xgc/registry/v1"
+	regv1 "xgc2/protocols/xgc/registry/v1"
 	aerialv1 "xgc2/protocols/xgc/semantic/aerial/v1"
 	xgcv1 "xgc2/protocols/xgc/v1"
 )
@@ -23,16 +22,50 @@ type prototypeAdapterLinkServer struct {
 }
 
 func (s *prototypeAdapterLinkServer) RegisterAdapter(
-	context.Context,
-	*RegisterAdapterRequest,
+	_ context.Context,
+	request *RegisterAdapterRequest,
 ) (*RegisterAdapterResponse, error) {
+	if request.GetBootstrapToken() == "" || len(request.GetSupportedProfiles()) == 0 {
+		return &RegisterAdapterResponse{Message: "bootstrap token and profiles are required"}, nil
+	}
 	return &RegisterAdapterResponse{
 		Accepted:                true,
 		CoreId:                  "core-test",
 		SessionId:               "session-test",
 		SelectedProtocolVersion: 1,
-		RegistryFingerprint:     registryv1.RegistryFingerprint,
-		PlanRevision:            1,
+		RegistryFingerprint:     regv1.RegistryFingerprint,
+		PlanRevision:            7,
+		HeartbeatIntervalMs:     1000,
+		MaxBatchBytes:           1024 * 1024,
+	}, nil
+}
+
+func (s *prototypeAdapterLinkServer) Heartbeat(
+	_ context.Context,
+	request *HeartbeatRequest,
+) (*HeartbeatResponse, error) {
+	return &HeartbeatResponse{
+		Accepted:            request.GetSessionId() == "session-test",
+		CoreUnixNanos:       time.Now().UnixNano(),
+		CurrentPlanRevision: 7,
+		ReloadPlan:          request.GetAppliedPlanRevision() != 7,
+	}, nil
+}
+
+func (s *prototypeAdapterLinkServer) GetAdapterPlan(
+	_ context.Context,
+	request *GetAdapterPlanRequest,
+) (*AdapterPlan, error) {
+	return &AdapterPlan{
+		Accepted:    request.GetSessionId() == "session-test",
+		Revision:    7,
+		AssetDigest: "9ec2de7150c15f18085d42f8f18c22f6f0979a9ef84e873cfb8b11af858f85cb",
+		Robots: []*RobotPlan{{
+			RobotId:       "uav1",
+			ProfileId:     "px4.multirotor.ros1.v1",
+			ProfileDigest: "0000000000000000000000000000000000000000000000000000000000000000",
+			Parameters:    map[string]string{"namespace": "/uav1"},
+		}},
 	}, nil
 }
 
@@ -44,29 +77,29 @@ func (s *prototypeAdapterLinkServer) PushTelemetry(
 		s.telemetry <- message
 	}
 	return &BatchAck{
-		Accepted:      true,
+		Accepted:      batch.GetPlanRevision() == 7,
 		BatchId:       batch.GetBatchId(),
 		AcceptedCount: uint32(len(batch.GetMessages())),
 	}, nil
 }
 
 func (s *prototypeAdapterLinkServer) StreamOperations(
-	_ *OperationStreamRequest,
+	request *OperationStreamRequest,
 	stream grpc.ServerStreamingServer[OperationRequest],
 ) error {
-	metadata, _ := registryv1.Lookup(5001)
-	payload, _ := proto.Marshal(&mavlinkv1.CommandLongRequest{
-		Command: 176,
-		Param1:  1,
-		Param2:  6,
-	})
+	if request.GetAppliedPlanRevision() != 7 {
+		return nil
+	}
+	metadata, _ := regv1.Lookup(3202)
+	payload, _ := proto.Marshal(&aerialv1.ModeRequest{Mode: "OFFBOARD"})
 	return stream.Send(&OperationRequest{
-		OperationId:       "op-mavlink-command-1",
+		OperationId:       "op-mode-1",
 		IssuedUnixNanos:   time.Now().UnixNano(),
 		DeadlineUnixNanos: time.Now().Add(time.Second).UnixNano(),
+		PlanRevision:      7,
 		Message: &xgcv1.Message{
 			RobotId:           "uav1",
-			ChannelId:         "mavlink.command_long",
+			ChannelId:         "operation.mode",
 			MessageId:         metadata.ID,
 			SchemaVersion:     metadata.Version,
 			SchemaFingerprint: metadata.Fingerprint,
@@ -84,7 +117,7 @@ func (s *prototypeAdapterLinkServer) ReportOperationEvents(
 		s.events <- event
 	}
 	return &BatchAck{
-		Accepted:      true,
+		Accepted:      batch.GetPlanRevision() == 7,
 		BatchId:       batch.GetBatchId(),
 		AcceptedCount: uint32(len(batch.GetEvents())),
 	}, nil
@@ -98,9 +131,7 @@ func TestAdapterLinkEndToEnd(t *testing.T) {
 		events:    make(chan *OperationEvent, 1),
 	}
 	RegisterAdapterLinkServer(grpcServer, service)
-	go func() {
-		_ = grpcServer.Serve(listener)
-	}()
+	go func() { _ = grpcServer.Serve(listener) }()
 	t.Cleanup(grpcServer.Stop)
 
 	connection, err := grpc.NewClient(
@@ -121,23 +152,50 @@ func TestAdapterLinkEndToEnd(t *testing.T) {
 	registered, err := client.RegisterAdapter(ctx, &RegisterAdapterRequest{
 		AdapterId:                 "ros1-adapter",
 		NativeProtocol:            "ros1",
+		SoftwareVersion:           "0.2.0",
 		SupportedProtocolVersions: []uint32{1},
-		RegistryFingerprint:       registryv1.RegistryFingerprint,
+		RegistryFingerprint:       regv1.RegistryFingerprint,
+		BootstrapToken:            "single-use-bootstrap-token",
+		SupportedProfiles: []*ProfileAdvertisement{{
+			ProfileId:     "px4.multirotor.ros1.v1",
+			ProfileDigest: "0000000000000000000000000000000000000000000000000000000000000000",
+		}},
 	})
 	if err != nil || !registered.GetAccepted() || registered.GetSessionId() == "" {
 		t.Fatalf("register failed: response=%v error=%v", registered, err)
 	}
 
-	statusMetadata, _ := registryv1.Lookup(3001)
+	plan, err := client.GetAdapterPlan(ctx, &GetAdapterPlanRequest{
+		AdapterId: "ros1-adapter",
+		SessionId: registered.GetSessionId(),
+	})
+	if err != nil || !plan.GetAccepted() || plan.GetRevision() != 7 || len(plan.GetRobots()) != 1 {
+		t.Fatalf("plan failed: response=%v error=%v", plan, err)
+	}
+	if plan.GetRobots()[0].GetProfileId() != "px4.multirotor.ros1.v1" || plan.GetAssetDigest() == "" {
+		t.Fatalf("unexpected asset-backed plan: %v", plan)
+	}
+
+	heartbeat, err := client.Heartbeat(ctx, &HeartbeatRequest{
+		AdapterId:           "ros1-adapter",
+		SessionId:           registered.GetSessionId(),
+		AppliedPlanRevision: plan.GetRevision(),
+	})
+	if err != nil || !heartbeat.GetAccepted() || heartbeat.GetReloadPlan() {
+		t.Fatalf("heartbeat failed: response=%v error=%v", heartbeat, err)
+	}
+
+	statusMetadata, _ := regv1.Lookup(3001)
 	statusPayload, _ := proto.Marshal(&aerialv1.FlightStatus{
 		Connected: true,
 		Armed:     false,
 		Mode:      "MANUAL",
 	})
 	ack, err := client.PushTelemetry(ctx, &TelemetryBatch{
-		AdapterId: "ros1-adapter",
-		SessionId: registered.GetSessionId(),
-		BatchId:   1,
+		AdapterId:    "ros1-adapter",
+		SessionId:    registered.GetSessionId(),
+		BatchId:      1,
+		PlanRevision: plan.GetRevision(),
 		Messages: []*xgcv1.Message{{
 			RobotId:           "uav1",
 			ChannelId:         "state.flight",
@@ -156,9 +214,10 @@ func TestAdapterLinkEndToEnd(t *testing.T) {
 	}
 
 	stream, err := client.StreamOperations(ctx, &OperationStreamRequest{
-		AdapterId: "ros1-adapter",
-		SessionId: registered.GetSessionId(),
-		RobotIds:  []string{"uav1"},
+		AdapterId:           "ros1-adapter",
+		SessionId:           registered.GetSessionId(),
+		RobotIds:            []string{"uav1"},
+		AppliedPlanRevision: plan.GetRevision(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,53 +226,34 @@ func TestAdapterLinkEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, ok := registryv1.New(operation.GetMessage().GetMessageId())
+	if operation.GetPlanRevision() != plan.GetRevision() {
+		t.Fatalf("operation omitted plan revision: %v", operation)
+	}
+	decoded, ok := regv1.New(operation.GetMessage().GetMessageId())
 	if !ok || proto.Unmarshal(operation.GetMessage().GetPayload(), decoded) != nil {
 		t.Fatalf("operation payload could not be decoded: %v", operation)
 	}
-	command := decoded.(*mavlinkv1.CommandLongRequest)
-	if command.GetCommand() != 176 || command.GetParam1() != 1 || command.GetParam2() != 6 {
-		t.Fatalf("unexpected MAVLink command request: %v", command)
+	mode := decoded.(*aerialv1.ModeRequest)
+	if mode.GetMode() != "OFFBOARD" {
+		t.Fatalf("unexpected mode request: %v", mode)
 	}
 
-	commandAckMetadata, _ := registryv1.Lookup(5099)
-	commandAckPayload, _ := proto.Marshal(&mavlinkv1.CommandAck{
-		Command:  176,
-		Result:   0,
-		Progress: 255,
-	})
 	eventAck, err := client.ReportOperationEvents(ctx, &OperationEventBatch{
-		AdapterId: "ros1-adapter",
-		SessionId: registered.GetSessionId(),
-		BatchId:   2,
+		AdapterId:    "ros1-adapter",
+		SessionId:    registered.GetSessionId(),
+		BatchId:      2,
+		PlanRevision: plan.GetRevision(),
 		Events: []*OperationEvent{{
 			OperationId: operation.GetOperationId(),
-			Phase:       OperationPhase_OPERATION_PHASE_ACCEPTED,
+			Phase:       OperationPhase_OPERATION_PHASE_SUCCEEDED,
 			Code:        ResultCode_RESULT_CODE_OK,
-			Response: &xgcv1.Message{
-				RobotId:           "uav1",
-				ChannelId:         "mavlink.command_long",
-				MessageId:         commandAckMetadata.ID,
-				SchemaVersion:     commandAckMetadata.Version,
-				SchemaFingerprint: commandAckMetadata.Fingerprint,
-				Encoding:          xgcv1.PayloadEncoding_PAYLOAD_ENCODING_PROTOBUF,
-				Payload:           commandAckPayload,
-			},
 		}},
 	})
-	if err != nil || eventAck.GetAcceptedCount() != 1 {
+	if err != nil || !eventAck.GetAccepted() || eventAck.GetAcceptedCount() != 1 {
 		t.Fatalf("operation event report failed: response=%v error=%v", eventAck, err)
 	}
 	event := <-service.events
-	if event.GetOperationId() != "op-mavlink-command-1" || event.GetResponse().GetMessageId() != 5099 {
+	if event.GetOperationId() != "op-mode-1" || event.GetPhase() != OperationPhase_OPERATION_PHASE_SUCCEEDED {
 		t.Fatalf("unexpected operation event: %v", event)
-	}
-	decodedAck, ok := registryv1.New(event.GetResponse().GetMessageId())
-	if !ok || proto.Unmarshal(event.GetResponse().GetPayload(), decodedAck) != nil {
-		t.Fatalf("operation ACK payload could not be decoded: %v", event)
-	}
-	commandAck := decodedAck.(*mavlinkv1.CommandAck)
-	if commandAck.GetCommand() != 176 || commandAck.GetResult() != 0 || commandAck.GetProgress() != 255 {
-		t.Fatalf("unexpected MAVLink command ACK: %v", commandAck)
 	}
 }

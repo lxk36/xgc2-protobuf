@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -54,6 +56,20 @@ jobs:
           python -m pip install -r requirements/generator.txt
           tools/install-go-plugins.sh
 
+      - name: Set up Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.47.2
+
+      - name: Lint protobuf contracts
+        run: buf lint
+
+      - name: Check protobuf compatibility within the protocol epoch
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: tools/check-breaking.sh "${BASE_REF}"
+
       - name: Generate and test C++, Go, and Python
         env:
           XGC2_GO_PROXY: https://proxy.golang.org,direct
@@ -81,7 +97,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-yaml
+          sudo apt-get install -y --no-install-recommends python3-jsonschema python3-yaml
 
       - name: Check whitespace and package contract
         run: |
@@ -131,6 +147,7 @@ jobs:
                 make \
                 pkg-config \
                 protobuf-compiler \
+                python3-jsonschema \
                 python3 \
                 python3-protobuf \
                 python3-yaml

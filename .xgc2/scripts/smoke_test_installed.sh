@@ -12,6 +12,10 @@ test -f "${schema_root}/descriptors/xgc2-protocols.pb"
 test -f "${schema_root}/registry/messages.yaml"
 test -f "${schema_root}/registry/registry.json"
 test -d "${schema_root}/profiles"
+test -f "${schema_root}/profiles/schema/adapter-profile-v1.schema.json"
+test -f "${schema_root}/profiles/ros1/px4-multirotor-ros1-v1.yaml"
+test -f "${schema_root}/profiles/ros1/scout-mini-ros1-v1.yaml"
+test -f "${schema_root}/profiles/registry.json"
 test -f /usr/share/cmake/xgc2_protobuf/xgc2_protobufConfig.cmake
 test -f /usr/share/pkgconfig/xgc2-protobuf.pc
 
@@ -27,11 +31,23 @@ fi
 
 python3 - <<'PY'
 import json
+import hashlib
 from pathlib import Path
 
 registry = json.loads(Path("/usr/share/xgc2-protobuf/registry/registry.json").read_text())
 if not registry.get("messages"):
     raise SystemExit("installed registry has no messages")
+
+profiles_root = Path("/usr/share/xgc2-protobuf/profiles")
+profile_registry = json.loads((profiles_root / "registry.json").read_text())
+if profile_registry.get("digest_algorithm") != "sha256-raw-bytes":
+    raise SystemExit("installed profile registry has an unexpected digest algorithm")
+for profile in profile_registry.get("profiles", []):
+    actual = hashlib.sha256((profiles_root / profile["file"]).read_bytes()).hexdigest()
+    if actual != profile["digest"]:
+        raise SystemExit("installed profile digest mismatch for " + profile["profile_id"])
+if len(profile_registry.get("profiles", [])) != 2:
+    raise SystemExit("installed profile registry does not contain exactly two profiles")
 PY
 
 protoc \
@@ -63,5 +79,7 @@ cmake -S "${probe_dir}" -B "${probe_dir}/build"
 test "$(pkg-config --variable=proto_root xgc2-protobuf)" = "${schema_root}/proto"
 test "$(pkg-config --variable=descriptor_set xgc2-protobuf)" = \
   "${schema_root}/descriptors/xgc2-protocols.pb"
+test "$(pkg-config --variable=profile_registry xgc2-protobuf)" = \
+  "${schema_root}/profiles/registry.json"
 
 echo "xgc2-protobuf-dev installed smoke test passed."

@@ -1,14 +1,13 @@
 version: 1
 
-# These IDs appeared in the public prototype before their high-level
-# arm/mode/takeoff/land messages were replaced or removed. They stay reserved
-# so the registry's never-reuse rule remains true even before the first Debian
-# release.
-reserved_ids: [3101, 3111, 3121, 3131, 3199]
+# These IDs appeared in an earlier public protocol revision. They stay reserved
+# after their payloads are removed so the registry's never-reuse rule remains
+# true across releases.
+reserved_ids: [3101, 3111, 3121, 3131, 3199, 5001, 5099]
 
-# IDs are global and never reused. Payloads are reusable XGC2 semantics or
-# explicitly named protocol-native dialect messages; native ROS message types
-# never become the cross-language contract.
+# IDs are global and never reused. Payloads are reusable XGC2 semantics;
+# protocol-native dialects and ROS message types never become the
+# cross-language contract.
 messages:
   - id: 1001
     type: xgc.semantic.common.v1.MotionVelocitySetpoint
@@ -50,12 +49,17 @@ messages:
     version: 1
     roles: [telemetry]
 
-  - id: 5001
-    type: xgc.mavlink.v1.CommandLongRequest
+  - id: 3201
+    type: xgc.semantic.aerial.v1.ArmRequest
     version: 1
     roles: [request]
 
-  - id: 5099
-    type: xgc.mavlink.v1.CommandAck
+  - id: 3202
+    type: xgc.semantic.aerial.v1.ModeRequest
     version: 1
-    roles: [response]
+    roles: [request]
+
+  - id: 3203
+    type: xgc.semantic.aerial.v1.AutopilotRebootRequest
+    version: 1
+    roles: [request]

@@ -5,9 +5,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 "${root_dir}/tools/generate.sh"
 
-python3 "${root_dir}/tools/validate_profiles.py" \
-  --registry "${root_dir}/registry/messages.yaml" \
-  --profiles "${root_dir}/profiles"
+python3 "${root_dir}/tests/python/profile_validation.py"
 
 cp "${root_dir}/packaging/go/go.sum" "${root_dir}/generated/go/go.sum"
 cp "${root_dir}/tests/go/registry_test.go" \
@@ -33,11 +31,12 @@ mapfile -t cpp_sources < <(
     ! -name '*.grpc.pb.cc' -print | sort
 )
 mkdir -p "${root_dir}/generated/tests"
+read -r -a protobuf_flags <<<"$(pkg-config --cflags --libs protobuf)"
 g++ -std=c++14 -O0 -g \
   -I"${root_dir}/generated/cpp" \
   "${root_dir}/tests/cpp/message_roundtrip.cpp" \
   "${cpp_sources[@]}" \
-  $(pkg-config --cflags --libs protobuf) \
+  "${protobuf_flags[@]}" \
   -pthread \
   -o "${root_dir}/generated/tests/cpp-message-roundtrip"
 "${root_dir}/generated/tests/cpp-message-roundtrip"
