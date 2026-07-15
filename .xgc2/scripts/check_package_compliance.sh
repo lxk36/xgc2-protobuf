@@ -59,12 +59,35 @@ for file in "${required_files[@]}"; do
   fi
 done
 
-if ! grep -q '^id: xgc2-protobuf$' .xgc2/product.yml ||
-   ! grep -q '^version: 0.2.0-1$' .xgc2/product.yml ||
-   ! grep -q '^kind: toolchain-apt$' .xgc2/product.yml; then
-  echo "product metadata identity/version/kind is inconsistent" >&2
+metadata=.xgc2/product.yml
+product_version="$(sed -n 's/^version:[[:space:]]*//p' "${metadata}")"
+apt_distributions="$(
+  sed -n '/^apt:$/,/^[^[:space:]]/s/^  distribution:[[:space:]]*//p' "${metadata}"
+)"
+
+if ! grep -q '^id: xgc2-protobuf$' "${metadata}" ||
+   ! grep -q '^kind: toolchain-apt$' "${metadata}"; then
+  echo "product metadata identity/kind is inconsistent" >&2
   exit 1
 fi
+if [[ ! "${product_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; then
+  echo "product metadata version is missing or invalid: ${product_version:-<empty>}" >&2
+  exit 1
+fi
+if [[ -z "${apt_distributions}" ]]; then
+  echo "product metadata apt.distribution is missing" >&2
+  exit 1
+fi
+
+IFS=',' read -r -a distributions <<< "${apt_distributions}"
+for distribution in "${distributions[@]}"; do
+  distribution="${distribution//[[:space:]]/}"
+  expected_apt_version="${product_version}~${distribution}"
+  if ! grep -Fqx "    ${distribution}: ${expected_apt_version}" "${metadata}"; then
+    echo "release.apt_versions.${distribution} must be ${expected_apt_version}" >&2
+    exit 1
+  fi
+done
 
 if [[ "$(find proto -type f -name '*.proto' | wc -l)" -eq 0 ]]; then
   echo "No protobuf schemas found." >&2

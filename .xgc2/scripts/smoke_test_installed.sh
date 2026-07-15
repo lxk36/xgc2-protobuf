@@ -42,12 +42,34 @@ profiles_root = Path("/usr/share/xgc2-protobuf/profiles")
 profile_registry = json.loads((profiles_root / "registry.json").read_text())
 if profile_registry.get("digest_algorithm") != "sha256-raw-bytes":
     raise SystemExit("installed profile registry has an unexpected digest algorithm")
-for profile in profile_registry.get("profiles", []):
-    actual = hashlib.sha256((profiles_root / profile["file"]).read_bytes()).hexdigest()
+profiles = profile_registry.get("profiles")
+if not isinstance(profiles, list) or not profiles:
+    raise SystemExit("installed profile registry has no profiles")
+
+registered_files = set()
+for profile in profiles:
+    if not isinstance(profile, dict) or not profile.get("file") or not profile.get("profile_id"):
+        raise SystemExit("installed profile registry contains an invalid entry")
+    relative_path = Path(profile["file"])
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise SystemExit("installed profile registry contains an unsafe path")
+    normalized_path = relative_path.as_posix()
+    if normalized_path in registered_files:
+        raise SystemExit("installed profile registry contains a duplicate file")
+    registered_files.add(normalized_path)
+    installed_path = profiles_root / relative_path
+    if not installed_path.is_file():
+        raise SystemExit("installed profile file is missing: " + normalized_path)
+    actual = hashlib.sha256(installed_path.read_bytes()).hexdigest()
     if actual != profile["digest"]:
         raise SystemExit("installed profile digest mismatch for " + profile["profile_id"])
-if len(profile_registry.get("profiles", [])) != 2:
-    raise SystemExit("installed profile registry does not contain exactly two profiles")
+
+installed_files = {
+    path.relative_to(profiles_root).as_posix()
+    for path in profiles_root.rglob("*.yaml")
+}
+if registered_files != installed_files:
+    raise SystemExit("installed profile registry does not match installed profile files")
 PY
 
 protoc \
