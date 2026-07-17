@@ -1,53 +1,99 @@
 # XGC2 Protocols
 
-Cross-language protocol source of truth for XGC2 Core, robot adapters,
-simulators, and Python tools. ROS1 is a consumer of these contracts, not the
-owner of the shared protocol.
+Cross-language source of truth for the XGC2 Adapter Runtime Link, reusable
+semantic payloads, domain envelopes, descriptors, and the global semantic
+message registry.
 
 ## Contract shape
 
 ```text
-proto/xgc/v1/            Stable, direction-neutral Message
-proto/xgc/adapter/v1/    AdapterLink gRPC lifecycle and data flows
-proto/xgc/semantic/      Extensible XGC2 semantic payload messages
-registry/                Global message ID registry
-profiles/schema/         Formal Adapter profile JSON Schema
-profiles/ros1/           Native Adapter mappings for supported robots
-tools/                   Reproducible generation and validation
-tests/                   C++, Go, and Python round-trip smoke tests
-generated/               Generated artifacts; ignored by Git
+proto/xgc/adapter/v1/   Capability-first Adapter Runtime Link
+proto/xgc/v1/           Domain-neutral payload, schema, time, and message types
+proto/xgc/robot/v1/     Robot-domain routing wrapper
+proto/xgc/semantic/     Reusable semantic payload schemas
+registry/               Global semantic message ID registry
+tools/                  Reproducible generation and validation
+tests/                  C++, Go, and Python contract tests
+generated/              Ignored generated artifacts
 ```
 
-The `xgc.v1.Message` envelope carries a `message_id` and protobuf-encoded
-`bytes payload`.
-Generated registries map that ID back to a concrete C++, Go, or Python message
-class. Adding a semantic capability extends the payload catalog and registry;
-it does not change `xgc.v1.Message` or the Adapter gRPC service.
+The common product deliberately owns no native Adapter profiles, ROS endpoints,
+robot inventory, run binding selection, or middleware conversion policy. Native
+mapping
+contracts belong to the concrete Adapter product that implements them.
 
-See [docs/architecture.md](docs/architecture.md) for the design boundary,
-[docs/profile-contract.md](docs/profile-contract.md) for the profile digest
-contract, and
-[profiles/ros1/px4-multirotor-ros1-v2.yaml](profiles/ros1/px4-multirotor-ros1-v2.yaml)
-for the PX4 profile.
+## Adapter Runtime Link
+
+`xgc.adapter.v1.AdapterRuntimeLinkService` has three RPCs:
+
+- `Register` authenticates one prepared instance and process generation, proves
+  the running build/manifest/SDK identity, and advertises immutable capability
+  contracts;
+- bidirectional `Control` carries revisioned `AdapterInstanceSpec`, heartbeat,
+  atomic apply results, capability readiness, drain, and stop frames;
+- bidirectional `Work` carries unary requests, durable operation events, and
+  Host-initiated, credit-controlled source streams.
+
+The Process Supervisor passes exactly one mode-0600 binary
+`AdapterProcessBootstrap` file containing the Runtime target, registration
+identity/proofs/contracts, and first complete instance spec. The SDK, Host, and
+Supervisor therefore share one protobuf mapping instead of reconstructing
+security-sensitive bootstrap fields in each Adapter.
+
+The Runtime Host owns instance identity, scope, enabled capabilities, and
+configuration. A running Adapter may report only the capability contracts
+allowed by its trusted definition. Session frames are fenced by process
+generation, session generation, Runtime epoch, connection epoch, and a
+per-connection frame sequence. Readiness and every Work dispatch identify the
+exact immutable capability contract by ID, version, and digest.
+Control and Work reconnect as a pair and use the same `connection_epoch`.
+The Adapter's first Work frame is always `WorkAttach`, allowing the Host to
+identify the otherwise request-silent bidi stream before dispatch.
+
+Runtime Link protocol v2 is the one exact supported Link contract; registration
+does not negotiate a version set or retain a legacy fallback. It is deliberately
+source-only. The Host allocates every source stream ID in
+`SourceOpenRequest.context.work_id` and grants the first Adapter-to-Host credit.
+The Adapter echoes that identity as `stream_id` in every response;
+`accepted=true` represents
+a successful empty open, while an error rejects it. Only the Adapter sends
+`SourceData` and `SourceClose`, and only the Host sends `SourceCredit` and
+an exact-oneof `WorkCancellation`. There is no Adapter-initiated open, sink, duplex, or
+direction-neutral stream-frame compatibility path.
+
+The Adapter retains each terminal `UnaryResponse`, terminal `OperationEvent`,
+rejected `SourceOpenResult`, or `SourceClose` until the Host returns an exact
+`TerminalAcknowledgement`. Its `terminal_digest` is
+`sha256(fully-qualified-message-name || NUL || deterministic-protobuf-bytes)`,
+formatted as `sha256:` plus lowercase hexadecimal. The Host acknowledges unary
+and operation terminals only after the durable invocation commit. A normal
+source close is acknowledged only after every preceding `SourceData` frame has
+been accepted by the domain consumer; rejected opens and canceled-source closes
+can be acknowledged immediately after their exact connection-local terminal
+commit. Matching terminal replay receives the same acknowledgement; conflicting
+bytes are a protocol violation.
+
+`xgc.v1.Message` is domain-neutral. Robot and channel routing now lives only in
+`xgc.robot.v1.RobotMessage`. `xgc.robot.v1.RobotAdapterSpec` is the typed robot
+configuration payload for a generic `AdapterInstanceSpec`; it owns asset digest,
+robot resources, profile identity, parameters, and channel grants without
+leaking those fields into the Runtime Link. Semantic payload definitions and
+their historical message IDs remain reusable and are not coupled to Adapter
+instance scope.
+
+See [docs/architecture.md](docs/architecture.md) for protocol invariants.
 
 ## Generate
 
-Required runtime tools:
+Required tools:
 
-- `protoc` and the Protobuf C++ development package
-- `grpc_cpp_plugin`
-- Python `grpcio-tools`, `protobuf`, `jsonschema`, and `PyYAML`
-- pinned `protoc-gen-go` and `protoc-gen-go-grpc`
-
-The Go plugins are installed into the repository-local ignored tool directory:
+- `protoc`, the Protobuf C++ development package, and `grpc_cpp_plugin`;
+- Python `grpcio-tools`, `protobuf`, and `PyYAML`;
+- pinned `protoc-gen-go` and `protoc-gen-go-grpc`.
 
 ```bash
+python3 -m pip install -r requirements/generator.txt
 tools/install-go-plugins.sh
-```
-
-Generate all three language outputs:
-
-```bash
 tools/generate.sh
 ```
 
@@ -59,95 +105,53 @@ generated/go/
 generated/python/
 generated/descriptors/
 generated/registry.json
-generated/profile-registry.json
 ```
+
+Generated language bindings are ignored by Git. The Debian schema package also
+does not install language bindings; each consumer generates bindings with its
+pinned toolchain.
 
 ## Verify
 
 ```bash
+buf lint
 tools/smoke-test.sh
 ```
 
-The smoke test validates both Adapter profiles and performs the same payload
-round trip in C++, Go, and Python:
+The smoke test:
 
-```text
-ModeRequest(mode="OFFBOARD")
-  -> protobuf bytes
-  -> xgc.v1.Message(message_id=3202)
-  -> generated registry
-  -> ModeRequest(mode="OFFBOARD")
-```
+- generates C++, Go, Python, gRPC, descriptors, and registries;
+- verifies semantic payload registry round trips in C++, Go, and Python;
+- verifies the robot-domain wrapper around a generic message;
+- exercises Register, Control, and Work over an in-memory Go gRPC transport;
+- verifies exact contract identity, operation deadline/idempotency, and
+  independent byte/message stream credit with endpoint-schema-defined opaque
+  stream items;
+- verifies terminal acknowledgement identity and domain-separated digest shape;
+- rejects domain-specific imports and descriptor names (robot, ROS, gateway,
+  workflow, telemetry, UI, and related asset/run concepts) from the complete
+  Adapter Runtime Link surface.
 
-It also runs an in-memory Go gRPC integration test covering Adapter
-registration, telemetry upload, streamed operations, and operation-result
-reporting.
-
-CI runs `buf lint` for every change. Pull requests also run `buf breaking`
-against the target branch when both versions are in the same protocol epoch.
-Before 1.0, a minor-version change starts a deliberate breaking epoch; from
-1.0 onward, only a major-version change does so. Version `0.3.0-1` starts a
-deliberate breaking epoch: registry and protobuf encoding are negotiated once
-per Adapter session instead of repeated in every message, and PX4 profile v2
-adds the mocap and Offboard diagnostic contract.
-
-The public contract exposes semantic arm, mode, and normal autopilot-reboot
-requests. Raw MAVLink commands, ROS topic names, ROS service names, and native
-message types are profile implementation details and are never accepted from an
-individual Core operation.
-
-The current host has an incomplete `/usr/local` gRPC C++ development install,
-so the smoke test compiles the C++ Wire/payload/registry path and separately
-generates the gRPC C++ stubs. A Debian build image must provide a consistent
-gRPC C++ development package before linking the full Adapter service.
+CI also runs `buf breaking` inside a protocol epoch. Product version `0.5.0-1`
+starts a deliberate pre-1.0 breaking epoch for Runtime Link protocol v2 and its
+Host-initiated, source-only stream contract.
 
 ## Debian schema development package
 
-The first published product is `xgc2-protobuf-dev` (`Architecture: all`) for
-Ubuntu Focal, Jammy, and Noble. It provides the stable, language-neutral inputs
-needed by protocol consumers:
+`xgc2-protobuf-dev` (`Architecture: all`) supports Ubuntu Focal, Jammy, and
+Noble. It installs:
 
 - `.proto` source files under `/usr/share/xgc2-protobuf/proto`;
-- the complete descriptor set under `/usr/share/xgc2-protobuf/descriptors`;
-- the source YAML and generated JSON message registries;
-- the formal Adapter profile schema, source profiles, generated digest
-  registry, and protocol design documentation;
-- `find_package(xgc2_protobuf CONFIG)` and `pkg-config xgc2-protobuf`
-  discovery metadata.
+- the complete descriptor set;
+- source and generated JSON semantic message registries;
+- CMake and pkg-config discovery metadata;
+- protocol documentation.
 
-Install and inspect the schema root with:
+It owns no native profile directory and installs no generated C++, Go, or Python
+runtime bindings.
 
 ```bash
 sudo apt update
 sudo apt install xgc2-protobuf-dev
 pkg-config --variable=proto_root xgc2-protobuf
 ```
-
-The Debian package deliberately does **not** install generated C++, Go, or
-Python bindings. Each consumer generates bindings into its own build tree with
-its pinned toolchain. This prevents a schema package from silently selecting a
-distro-specific protobuf ABI, Python namespace, or Go module version.
-
-## Conflict and migration boundary
-
-`xgc2-protobuf-dev` coexists with Ubuntu's protobuf compiler and development
-packages. It owns only `/usr/share/xgc2-protobuf`, its CMake config directory,
-and its pkg-config file; it does not install files into `/usr/include`, Python
-site-packages, the Go module cache, or a ROS prefix.
-
-Consumers migrating from vendored schemas should depend on
-`xgc2-protobuf-dev`, discover `XGC2_PROTOBUF_PROTO_ROOT` (or the corresponding
-pkg-config variable), and generate bindings in a private build directory.
-Existing generated runtime packages must not be overwritten or claimed by this
-package. A future language-specific runtime package requires a separate name,
-ownership boundary, and compatibility policy.
-
-## Integration status
-
-This repository is an XGC2 `toolchain-apt` product with product id
-`xgc2-protobuf`. Push CI keeps the existing C++, Go, and Python generation tests
-and runs package compliance and Focal/Jammy/Noble Debian builds in parallel.
-Each successful distro build emits one schema-only deb plus independent amd64
-and arm64 trusted build manifests retained for 14 days. The fallback release
-workflow prepares the same artifacts for the centralized `xgc2-devops` release
-train and never receives APT publication credentials.

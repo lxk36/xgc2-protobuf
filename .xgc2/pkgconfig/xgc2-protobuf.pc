@@ -5,9 +5,7 @@ proto_root=${schema_root}/proto
 descriptor_set=${schema_root}/descriptors/xgc2-protocols.pb
 registry_json=${schema_root}/registry/registry.json
 registry_yaml=${schema_root}/registry/messages.yaml
-profiles_dir=${schema_root}/profiles
-profile_registry=${profiles_dir}/registry.json
 
 Name: xgc2-protobuf
 Description: XGC2 language-neutral protobuf schemas and registries
-Version: 0.2.0
+Version: 0.5.0

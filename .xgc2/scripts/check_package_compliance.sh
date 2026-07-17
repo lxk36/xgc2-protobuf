@@ -29,18 +29,14 @@ fi
 required_files=(
   README.md
   buf.yaml
-  docs/profile-contract.md
+  docs/architecture.md
   proto/xgc/v1/message.proto
   proto/xgc/adapter/v1/adapter.proto
+  proto/xgc/robot/v1/message.proto
   proto/xgc/semantic/aerial/v1/control.proto
   registry/messages.yaml
-  profiles/schema/adapter-profile-v1.schema.json
-  profiles/ros1/px4-multirotor-ros1-v1.yaml
-  profiles/ros1/scout-mini-ros1-v1.yaml
   tools/generate_registry.py
   tools/check-breaking.sh
-  tools/validate_profiles.py
-  tests/python/profile_validation.py
   .github/workflows/ci.yml
   .github/workflows/release.yml
   .xgc2/product.yml
@@ -94,8 +90,9 @@ if [[ "$(find proto -type f -name '*.proto' | wc -l)" -eq 0 ]]; then
   exit 1
 fi
 
-python3 tools/validate_profiles.py \
-  --registry registry/messages.yaml \
-  --profiles profiles
+if [[ -e profiles ]]; then
+  echo "Native Adapter profile paths must be owned by concrete Adapter products." >&2
+  exit 1
+fi
 
 echo "xgc2-protobuf-dev package compliance checks passed."

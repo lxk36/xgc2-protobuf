@@ -1,10 +1,10 @@
 schema: xgc2.product.v1
 id: xgc2-protobuf
 name: XGC2 Protocol Schemas
-version: 0.3.0-1
+version: 0.5.0-1
 kind: toolchain-apt
-summary: Versioned XGC2 protobuf schemas, descriptors, registries, and adapter profiles
-  for language-neutral protocol development.
+summary: Versioned XGC2 capability-first Adapter Runtime Link schemas, semantic
+  payloads, descriptors, and registries for language-neutral protocol development.
 apt:
   distribution: focal,jammy,noble
   install:
@@ -34,6 +34,6 @@ release:
   workflow: release.yml
   ci_workflow: ci.yml
   apt_versions:
-    focal: 0.3.0-1~focal
-    jammy: 0.3.0-1~jammy
-    noble: 0.3.0-1~noble
+    focal: 0.5.0-1~focal
+    jammy: 0.5.0-1~jammy
+    noble: 0.5.0-1~noble

@@ -9,8 +9,8 @@ message ArmRequest {
   bool armed = 1;
 }
 
-// ModeRequest selects a native autopilot mode after the selected Adapter
-// profile has validated and normalized it.
+// ModeRequest selects a native autopilot mode after the providing capability
+// has validated and normalized it.
 message ModeRequest {
   string mode = 1;
 }

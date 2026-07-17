@@ -70,11 +70,6 @@ python3 "${root_dir}/tools/generate_registry.py" \
   --python-out "${python_out}/xgc/registry/v1" \
   --metadata-out "${generated_dir}/registry.json"
 
-python3 "${root_dir}/tools/validate_profiles.py" \
-  --registry "${root_dir}/registry/messages.yaml" \
-  --profiles "${root_dir}/profiles" \
-  --metadata-out "${generated_dir}/profile-registry.json"
-
 gofmt -w "${go_out}/xgc/registry/v1/registry.go"
 
-echo "Generated C++, Go, Python, descriptors, message registry, and profile registry under ${generated_dir}"
+echo "Generated C++, Go, Python, descriptors, and message registry under ${generated_dir}"

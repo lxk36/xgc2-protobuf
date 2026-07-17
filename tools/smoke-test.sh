@@ -5,15 +5,13 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 "${root_dir}/tools/generate.sh"
 
-python3 "${root_dir}/tests/python/profile_validation.py"
-
 cp "${root_dir}/packaging/go/go.sum" "${root_dir}/generated/go/go.sum"
 cp "${root_dir}/tests/go/registry_test.go" \
   "${root_dir}/generated/go/xgc/registry/v1/registry_test.go"
-cp "${root_dir}/tests/go/adapter_link_test.go" \
-  "${root_dir}/generated/go/xgc/adapter/v1/adapter_link_test.go"
+cp "${root_dir}/tests/go/adapter_runtime_link_test.go" \
+  "${root_dir}/generated/go/xgc/adapter/v1/adapter_runtime_link_test.go"
 gofmt -w \
-  "${root_dir}/generated/go/xgc/adapter/v1/adapter_link_test.go" \
+  "${root_dir}/generated/go/xgc/adapter/v1/adapter_runtime_link_test.go" \
   "${root_dir}/generated/go/xgc/registry/v1/registry.go" \
   "${root_dir}/generated/go/xgc/registry/v1/registry_test.go"
 

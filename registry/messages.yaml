@@ -6,9 +6,14 @@ version: 1
 reserved_ids: [3101, 3111, 3121, 3131, 3199, 5001, 5099]
 
 # IDs are global and never reused. Payloads are reusable XGC2 semantics;
-# protocol-native dialects and ROS message types never become the
+# protocol-native dialects and middleware message types never become the
 # cross-language contract.
 messages:
+  - id: 1
+    type: xgc.v1.Empty
+    version: 1
+    roles: [request, response]
+
   - id: 1001
     type: xgc.semantic.common.v1.MotionVelocitySetpoint
     version: 1
@@ -88,3 +93,13 @@ messages:
     type: xgc.semantic.aerial.v1.AutopilotRebootRequest
     version: 1
     roles: [request]
+
+  - id: 4001
+    type: xgc.robot.v1.RobotAdapterSpec
+    version: 1
+    roles: [configuration]
+
+  - id: 4002
+    type: xgc.robot.v1.RobotMessage
+    version: 1
+    roles: [telemetry]

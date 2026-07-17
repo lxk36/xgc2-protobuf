@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package xgc.robot.v1;
+
+option go_package = "xgc2/protocols/xgc/robot/v1;robotv1";
+
+import "xgc/v1/message.proto";
+
+// RobotMessage adds robot-domain routing to a generic XGC message.
+message RobotMessage {
+  string robot_id = 1;
+  string channel_id = 2;
+  xgc.v1.Message message = 3;
+}
+
+message ChannelGrant {
+  string channel_id = 1;
+  bool enabled = 2;
+  map<string, string> parameters = 3;
+}
+
+message RobotResource {
+  string robot_id = 1;
+  string profile_id = 2;
+  string profile_digest = 3;
+  map<string, string> parameters = 4;
+  repeated ChannelGrant channels = 5;
+}
+
+// RobotAdapterSpec is the robot-domain typed configuration carried by
+// AdapterInstanceSpec.configuration. The generic Runtime Link does not inspect
+// or duplicate any of these fields.
+message RobotAdapterSpec {
+  string asset_digest = 1;
+  repeated RobotResource robots = 2;
+}

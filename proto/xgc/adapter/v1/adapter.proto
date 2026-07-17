@@ -6,189 +6,452 @@ option go_package = "xgc2/protocols/xgc/adapter/v1;adapterv1";
 
 import "xgc/v1/message.proto";
 
-// AdapterLink is hosted by Go Core. A C++ or Python adapter connects as a
-// client, uploads telemetry, and keeps StreamOperations open for commands and
-// native request/response operations.
-service AdapterLink {
-  rpc RegisterAdapter(RegisterAdapterRequest) returns (RegisterAdapterResponse);
-  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
-  rpc GetAdapterPlan(GetAdapterPlanRequest) returns (AdapterPlan);
-  rpc PushTelemetry(TelemetryBatch) returns (BatchAck);
-  rpc StreamOperations(OperationStreamRequest) returns (stream OperationRequest);
-  rpc ReportOperationEvents(OperationEventBatch) returns (BatchAck);
+// AdapterRuntimeLinkService is hosted by Core or Agent. An Adapter application
+// registers one prepared instance, then keeps independent control-plane and
+// work-plane streams open for that exact process generation.
+service AdapterRuntimeLinkService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Control(stream ControlRequest) returns (stream ControlResponse);
+  rpc Work(stream WorkRequest) returns (stream WorkResponse);
 }
 
-enum ChannelKind {
-  CHANNEL_KIND_UNSPECIFIED = 0;
-  CHANNEL_KIND_STREAM_OUT = 1;       // Adapter produces semantic messages.
-  CHANNEL_KIND_STREAM_IN = 2;        // Adapter consumes semantic messages.
-  CHANNEL_KIND_REQUEST_RESPONSE = 3; // Adapter consumes a request and replies.
-  CHANNEL_KIND_OPERATION = 4;        // Adapter consumes a request and reports OperationEvent.
+enum InteractionMode {
+  INTERACTION_MODE_UNSPECIFIED = 0;
+  INTERACTION_MODE_UNARY = 1;
+  INTERACTION_MODE_OPERATION = 2;
+  INTERACTION_MODE_STREAM_SOURCE = 3;
+
+  reserved 4, 5;
 }
 
-message ChannelAdvertisement {
-  string channel_id = 1;
-  ChannelKind kind = 2;
-  uint32 input_message_id = 3;
-  uint32 output_message_id = 4;
+enum SideEffectClass {
+  SIDE_EFFECT_CLASS_UNSPECIFIED = 0;
+  SIDE_EFFECT_CLASS_READ_ONLY = 1;
+  SIDE_EFFECT_CLASS_IDEMPOTENT = 2;
+  SIDE_EFFECT_CLASS_NON_IDEMPOTENT = 3;
 }
 
-// ProfileAdvertisement reports an Adapter implementation capability. It never
-// advertises robot inventory: robot truth belongs to the Core-bound swarm asset
-// and is delivered only through AdapterPlan.
-message ProfileAdvertisement {
-  string profile_id = 1;
-  // Lowercase SHA-256 hex of the complete profile YAML raw bytes.
-  string profile_digest = 2;
-  repeated ChannelAdvertisement channels = 3;
+enum IdempotencyMode {
+  IDEMPOTENCY_MODE_UNSPECIFIED = 0;
+  IDEMPOTENCY_MODE_NOT_SUPPORTED = 1;
+  IDEMPOTENCY_MODE_OPTIONAL = 2;
+  IDEMPOTENCY_MODE_REQUIRED = 3;
 }
 
-message RegisterAdapterRequest {
-  string adapter_id = 1;
-  string native_protocol = 2;
-  string software_version = 3;
-  repeated uint32 supported_protocol_versions = 4;
-  fixed64 registry_fingerprint = 5;
-  reserved 6;
-  reserved "robots";
-  // Single-use token bound by Core to the server-side runtime context.
-  string bootstrap_token = 7;
-  repeated ProfileAdvertisement supported_profiles = 8;
+enum ErrorClass {
+  ERROR_CLASS_UNSPECIFIED = 0;
+  ERROR_CLASS_PERMANENT = 1;
+  ERROR_CLASS_TRANSIENT = 2;
+  ERROR_CLASS_UNCERTAIN = 3;
+  ERROR_CLASS_CANCELLED = 4;
+  ERROR_CLASS_REJECTED = 5;
+  ERROR_CLASS_DEADLINE = 6;
+  ERROR_CLASS_RESOURCE_EXHAUSTED = 7;
 }
 
-message RegisterAdapterResponse {
-  bool accepted = 1;
-  string core_id = 2;
-  string session_id = 3;
-  uint32 selected_protocol_version = 4;
-  fixed64 registry_fingerprint = 5;
-  uint64 plan_revision = 6;
-  uint32 heartbeat_interval_ms = 7;
-  uint32 max_batch_bytes = 8;
-  string message = 9;
-}
-
-message HeartbeatRequest {
-  string adapter_id = 1;
-  string session_id = 2;
-  sfixed64 observed_unix_nanos = 3;
-  uint64 applied_plan_revision = 4;
-}
-
-message HeartbeatResponse {
-  bool accepted = 1;
-  sfixed64 core_unix_nanos = 2;
-  uint64 current_plan_revision = 3;
-  bool reload_plan = 4;
-}
-
-message GetAdapterPlanRequest {
-  string adapter_id = 1;
-  string session_id = 2;
-  uint64 known_revision = 3;
-}
-
-message EnabledChannel {
-  string channel_id = 1;
-  bool enabled = 2;
-  map<string, string> parameters = 3;
-}
-
-message RobotPlan {
-  string robot_id = 1;
-  string profile_id = 2;
-  map<string, string> parameters = 3;
-  repeated EnabledChannel channels = 4;
-  // Must match the raw-byte digest advertised for profile_id.
-  string profile_digest = 5;
-}
-
-message AdapterPlan {
-  bool accepted = 1;
-  uint64 revision = 2;
-  repeated RobotPlan robots = 3;
-  string message = 4;
-  // Digest of the immutable swarm-asset snapshot used to create this plan.
-  string asset_digest = 5;
-}
-
-message TelemetryBatch {
-  string adapter_id = 1;
-  string session_id = 2;
-  uint64 batch_id = 3;
-  repeated xgc.v1.Message messages = 4;
-  uint64 plan_revision = 5;
-}
-
-enum ResultCode {
-  RESULT_CODE_UNSPECIFIED = 0;
-  RESULT_CODE_OK = 1;
-  RESULT_CODE_INVALID_ARGUMENT = 2;
-  RESULT_CODE_UNSUPPORTED = 3;
-  RESULT_CODE_NOT_FOUND = 4;
-  RESULT_CODE_NOT_READY = 5;
-  RESULT_CODE_REJECTED = 6;
-  RESULT_CODE_TIMEOUT = 7;
-  RESULT_CODE_TRANSPORT_ERROR = 8;
-  RESULT_CODE_INTERNAL = 9;
-}
-
-message ItemError {
-  uint32 index = 1;
-  ResultCode code = 2;
-  string detail = 3;
-}
-
-message BatchAck {
-  bool accepted = 1;
-  uint64 batch_id = 2;
-  uint32 accepted_count = 3;
-  uint32 rejected_count = 4;
-  repeated ItemError errors = 5;
-}
-
-message OperationStreamRequest {
-  string adapter_id = 1;
-  string session_id = 2;
-  repeated string robot_ids = 3;
-  uint64 applied_plan_revision = 4;
-}
-
-message OperationRequest {
-  string operation_id = 1;
-  sfixed64 issued_unix_nanos = 2;
-  sfixed64 deadline_unix_nanos = 3;
-  uint32 ttl_ms = 4;
-  uint64 plan_revision = 5;
-  xgc.v1.Message message = 6;
+enum CapabilityState {
+  CAPABILITY_STATE_UNSPECIFIED = 0;
+  CAPABILITY_STATE_CONFIGURING = 1;
+  CAPABILITY_STATE_READY = 2;
+  CAPABILITY_STATE_DEGRADED = 3;
+  CAPABILITY_STATE_FAILED = 4;
+  CAPABILITY_STATE_DISABLED = 5;
 }
 
 enum OperationPhase {
-  reserved 7;
-
   OPERATION_PHASE_UNSPECIFIED = 0;
   OPERATION_PHASE_ACCEPTED = 1;
   OPERATION_PHASE_STARTED = 2;
-  OPERATION_PHASE_SUCCEEDED = 3;
-  OPERATION_PHASE_REJECTED = 4;
-  OPERATION_PHASE_FAILED = 5;
-  OPERATION_PHASE_EXPIRED = 6;
+  OPERATION_PHASE_PROGRESS = 3;
+  OPERATION_PHASE_SUCCEEDED = 4;
+  OPERATION_PHASE_REJECTED = 5;
+  OPERATION_PHASE_FAILED = 6;
+  OPERATION_PHASE_EXPIRED = 7;
+  OPERATION_PHASE_CANCELLED = 8;
+}
+
+message AdapterError {
+  string code = 1;
+  ErrorClass class = 2;
+  string message = 3;
+  uint32 retry_after_ms = 4;
+  xgc.v1.Payload details = 5;
+}
+
+message Deadline {
+  sfixed64 deadline_unix_nanos = 1;
+  uint32 ttl_ms = 2;
+}
+
+message FlowControl {
+  uint64 messages = 1;
+  uint64 bytes = 2;
+}
+
+message EndpointLimits {
+  uint32 maximum_request_bytes = 1;
+  uint32 maximum_response_bytes = 2;
+  uint32 maximum_concurrency = 3;
+  uint32 maximum_streams = 4;
+  uint32 maximum_stream_chunk_bytes = 5;
+  uint32 maximum_stream_chunk_messages = 6;
+}
+
+// CapabilityEndpointContract is immutable implementation metadata. Runtime
+// registration may report only endpoints already granted by the prepared
+// Adapter definition.
+message CapabilityEndpointContract {
+  string endpoint_id = 1;
+  InteractionMode interaction_mode = 2;
+  xgc.v1.SchemaReference input_schema = 3;
+  xgc.v1.SchemaReference output_schema = 4;
+  xgc.v1.SchemaReference event_schema = 5;
+  SideEffectClass side_effect_class = 6;
+  IdempotencyMode idempotency_mode = 7;
+  bool cancellation_supported = 8;
+  bool deadline_required = 9;
+  uint32 default_timeout_ms = 10;
+  uint32 maximum_timeout_ms = 11;
+  EndpointLimits limits = 12;
+}
+
+message CapabilityContract {
+  string capability_id = 1;
+  uint32 contract_version = 2;
+  string contract_digest = 3;
+  repeated CapabilityEndpointContract endpoints = 4;
+}
+
+message ScopeReference {
+  string kind = 1;
+  // Opaque canonical identity derived from attributes by the owning domain.
+  string key = 2;
+  // Lossless domain scope inputs required by native configuration. The Runtime
+  // Link preserves these values but does not interpret them.
+  map<string, string> attributes = 3;
+}
+
+message SecretReference {
+  string name = 1;
+  string reference = 2;
+  // Pins the referenced secret material to an immutable version.
+  string version = 3;
+}
+
+message EnabledCapability {
+  string capability_id = 1;
+  uint32 contract_version = 2;
+  string contract_digest = 3;
+  repeated string enabled_endpoint_ids = 4;
+  xgc.v1.Payload configuration = 5;
+}
+
+// AdapterInstanceSpec is the complete, host-owned desired configuration for one
+// immutable instance scope. The Adapter must apply one revision atomically.
+message AdapterInstanceSpec {
+  string instance_id = 1;
+  uint64 process_generation = 2;
+  uint64 revision = 3;
+  string spec_digest = 4;
+  ScopeReference scope = 5;
+  xgc.v1.Payload configuration = 6;
+  repeated EnabledCapability capabilities = 7;
+  repeated SecretReference secrets = 8;
+}
+
+message RegisterRequest {
+  string instance_id = 1;
+  uint64 process_generation = 2;
+  string definition_id = 3;
+  // Identifies the trusted host-side definition selected for this instance; it
+  // is not evidence of the bytes in the running process.
+  string definition_digest = 4;
+  string software_version = 5;
+  // The Link has one exact protocol contract. Version negotiation and legacy
+  // fallback are intentionally unsupported.
+  uint32 runtime_link_protocol_version = 6;
+  string bootstrap_token = 7;
+  repeated CapabilityContract supported_capabilities = 8;
+  // Proves the running artifact selected by the Process Supervisor.
+  string build_digest = 9;
+  // Proves the installed Adapter manifest that declared the contracts above.
+  string manifest_digest = 10;
+  // Identifies the Runtime Link SDK implementation used by the process.
+  string sdk_version = 11;
+}
+
+// AdapterProcessBootstrap is the single Process Supervisor -> Adapter handoff.
+// It is serialized as a binary protobuf into a mode-0600 file and passed as
+// --adapter-bootstrap-file. The SDK validates registration against initial_spec
+// before it connects; applications must not reconstruct these proofs.
+message AdapterProcessBootstrap {
+  uint32 format_version = 1;
+  string runtime_target = 2;
+  RegisterRequest registration = 3;
+  AdapterInstanceSpec initial_spec = 4;
+}
+
+message RegisterResponse {
+  bool accepted = 1;
+  string host_id = 2;
+  string session_id = 3;
+  uint64 process_generation = 4;
+  // Echoes the one exact Link protocol accepted by the Host.
+  uint32 runtime_link_protocol_version = 5;
+  uint64 current_spec_revision = 6;
+  uint32 heartbeat_interval_ms = 7;
+  uint32 maximum_control_frame_bytes = 8;
+  uint32 maximum_work_frame_bytes = 9;
+  reserved 10;
+  AdapterError error = 11;
+  uint64 session_generation = 12;
+  uint64 runtime_epoch = 13;
+}
+
+message SessionHeader {
+  string instance_id = 1;
+  string session_id = 2;
+  uint64 process_generation = 3;
+  // Changes whenever the Host activates a replacement session for an instance.
+  uint64 session_generation = 4;
+  // Changes whenever the hosting Core/Agent Runtime restarts.
+  uint64 runtime_epoch = 5;
+  // Changes whenever the paired Control+Work streams reconnect. The two
+  // streams in one attachment always carry the same connection_epoch; failure
+  // of either stream fences and replaces the pair.
+  uint64 connection_epoch = 6;
+  // Monotonically increases within one connection epoch.
+  uint64 frame_sequence = 7;
+}
+
+message CapabilityStatus {
+  string capability_id = 1;
+  CapabilityState state = 2;
+  string detail = 3;
+  // Together with capability_id, identifies the exact contract whose
+  // readiness is being reported.
+  uint32 contract_version = 4;
+  string contract_digest = 5;
+}
+
+message Heartbeat {
+  sfixed64 observed_unix_nanos = 1;
+  uint64 applied_spec_revision = 2;
+  string applied_spec_digest = 3;
+  uint64 ping_nonce = 4;
+  repeated CapabilityStatus capabilities = 5;
+}
+
+message ApplyInstanceSpecResult {
+  uint64 revision = 1;
+  string spec_digest = 2;
+  bool applied = 3;
+  repeated CapabilityStatus capabilities = 4;
+  AdapterError error = 5;
+}
+
+message DrainStatus {
+  bool drained = 1;
+  uint32 in_flight_work = 2;
+  AdapterError error = 3;
+}
+
+message ControlProtocolError {
+  uint64 rejected_frame_sequence = 1;
+  AdapterError error = 2;
+}
+
+// ControlRequest frames travel from Adapter to Host.
+message ControlRequest {
+  SessionHeader header = 1;
+  oneof frame {
+    Heartbeat heartbeat = 2;
+    ApplyInstanceSpecResult apply_instance_spec_result = 3;
+    DrainStatus drain_status = 4;
+    ControlProtocolError protocol_error = 5;
+  }
+}
+
+message Ping {
+  uint64 nonce = 1;
+  Deadline response_deadline = 2;
+}
+
+message DrainRequest {
+  Deadline deadline = 1;
+  string reason = 2;
+}
+
+message StopRequest {
+  Deadline deadline = 1;
+  string reason = 2;
+}
+
+// ControlResponse frames travel from Host to Adapter.
+message ControlResponse {
+  SessionHeader header = 1;
+  oneof frame {
+    AdapterInstanceSpec instance_spec = 2;
+    Ping ping = 3;
+    DrainRequest drain = 4;
+    StopRequest stop = 5;
+    ControlProtocolError protocol_error = 6;
+  }
+}
+
+message WorkContext {
+  string work_id = 1;
+  string capability_id = 2;
+  string endpoint_id = 3;
+  uint64 spec_revision = 4;
+  Deadline deadline = 5;
+  string idempotency_key = 6;
+  string request_digest = 7;
+  ScopeReference subject = 8;
+  // Dispatch is bound to an exact immutable capability contract, not merely
+  // to a capability_id that may have multiple installed versions.
+  uint32 contract_version = 9;
+  string contract_digest = 10;
+}
+
+message UnaryRequest {
+  WorkContext context = 1;
+  xgc.v1.Payload input = 2;
+}
+
+message UnaryResponse {
+  string work_id = 1;
+  oneof outcome {
+    xgc.v1.Payload output = 2;
+    AdapterError error = 3;
+  }
+}
+
+message OperationRequest {
+  WorkContext context = 1;
+  xgc.v1.Payload input = 2;
 }
 
 message OperationEvent {
-  string operation_id = 1;
+  string work_id = 1;
   OperationPhase phase = 2;
-  ResultCode code = 3;
-  sfixed64 occurred_unix_nanos = 4;
-  string detail = 5;
-  int32 native_code = 6;
-  xgc.v1.Message response = 7;
+  sfixed64 occurred_unix_nanos = 3;
+  uint32 progress_per_mille = 4;
+  xgc.v1.Payload output = 5;
+  AdapterError error = 6;
+  int32 native_code = 7;
 }
 
-message OperationEventBatch {
-  string adapter_id = 1;
-  string session_id = 2;
-  uint64 batch_id = 3;
-  repeated OperationEvent events = 4;
-  uint64 plan_revision = 5;
+// SourceOpenRequest is sent only by the Host. WorkContext.work_id is the one
+// exact Host-allocated stream identity; every Adapter response must echo it as
+// stream_id. The Host grants the initial Adapter-to-Host data credit, and the
+// Adapter must not emit SourceData before accepting this exact request.
+message SourceOpenRequest {
+  WorkContext context = 1;
+  reserved 2;
+  FlowControl initial_credit = 3;
+}
+
+// SourceOpenResult is sent only by the Adapter. A successful open is expressed
+// by accepted=true even when there is no initial payload. The Host must enforce
+// accepted xor error and permit initial_payload only when accepted is true.
+message SourceOpenResult {
+  string stream_id = 1;
+  bool accepted = 2;
+  xgc.v1.Payload initial_payload = 3;
+  AdapterError error = 4;
+}
+
+// SourceData is sent only by the Adapter after SourceOpenResult accepted the
+// Host-allocated stream. Each item uses the source endpoint's output schema.
+message SourceData {
+  string stream_id = 1;
+  uint64 sequence = 2;
+  // Keeping items opaque prevents the Runtime Link from imposing a timestamp
+  // or domain routing envelope on every stream.
+  repeated bytes items = 3;
+}
+
+// SourceCredit is sent only by the Host and grants additional
+// Adapter-to-Host data credit.
+message SourceCredit {
+  string stream_id = 1;
+  FlowControl grant = 2;
+  uint64 acknowledged_sequence = 3;
+}
+
+// WorkCancellation is sent only by the Host. stream_id cancels a Host-opened
+// source; work_id identifies unary or operation work. Exactly one is required.
+message WorkCancellation {
+  oneof identity {
+    string work_id = 1;
+    string stream_id = 2;
+  }
+  string reason = 3;
+}
+
+// SourceClose is sent only by the Adapter after the last SourceData frame. A
+// Host that wants to stop the source sends WorkCancellation; the Adapter then
+// acknowledges termination with SourceClose.
+message SourceClose {
+  string stream_id = 1;
+  uint64 final_sequence = 2;
+  AdapterError error = 3;
+}
+
+// TerminalAcknowledgement is sent only by the Host after it has accepted the
+// exact terminal Adapter-to-Host submessage. UnaryResponse and terminal
+// OperationEvent acknowledgements follow the durable invocation commit;
+// rejected SourceOpenResult and SourceClose acknowledgements follow the exact
+// connection-local stream tombstone commit. terminal_digest is the canonical
+// SHA-256 digest of: fully-qualified protobuf message name, one NUL byte, then
+// the deterministic protobuf encoding of that exact submessage. Including the
+// type name domain-separates distinct messages with identical wire bytes.
+message TerminalAcknowledgement {
+  oneof identity {
+    string work_id = 1;
+    string stream_id = 2;
+  }
+  string terminal_digest = 3;
+}
+
+message WorkProtocolError {
+  uint64 rejected_frame_sequence = 1;
+  AdapterError error = 2;
+}
+
+// WorkAttach is always the Adapter's first Work frame. It lets the Host attach
+// an otherwise request-silent bidi stream to the registered fenced session
+// before dispatching Work.
+message WorkAttach {
+  uint64 applied_spec_revision = 1;
+  string applied_spec_digest = 2;
+}
+
+// WorkRequest frames travel from Adapter to Host.
+message WorkRequest {
+  SessionHeader header = 1;
+  oneof frame {
+    WorkAttach attach = 2;
+    UnaryResponse unary_response = 3;
+    OperationEvent operation_event = 4;
+    SourceOpenResult source_open_result = 5;
+    SourceData source_data = 6;
+    SourceClose source_close = 7;
+    WorkProtocolError protocol_error = 8;
+  }
+}
+
+// WorkResponse frames travel from Host to Adapter.
+message WorkResponse {
+  SessionHeader header = 1;
+  oneof frame {
+    UnaryRequest unary_request = 2;
+    OperationRequest operation_request = 3;
+    SourceOpenRequest source_open_request = 4;
+    SourceCredit source_credit = 5;
+    WorkCancellation cancellation = 6;
+    WorkProtocolError protocol_error = 7;
+    TerminalAcknowledgement terminal_acknowledgement = 8;
+  }
 }
