@@ -79,6 +79,20 @@ func TestRobotAdapterSpecIsTypedDomainConfiguration(t *testing.T) {
 	}
 }
 
+func TestChannelGrantOwnsOnlyChannelSelection(t *testing.T) {
+	descriptor := (&robotv1.ChannelGrant{}).ProtoReflect().Descriptor()
+	if descriptor.Fields().ByName("parameters") != nil {
+		t.Fatal("ChannelGrant must not carry runtime parameters")
+	}
+	if descriptor.Fields().Len() != 2 {
+		t.Fatalf("ChannelGrant has unexpected fields: %d", descriptor.Fields().Len())
+	}
+	reserved := descriptor.ReservedRanges()
+	if reserved.Len() != 1 || reserved.Get(0)[0] != 3 || reserved.Get(0)[1] != 4 {
+		t.Fatalf("ChannelGrant field 3 must stay reserved: %v", reserved)
+	}
+}
+
 func TestDomainBoundaryMessagesAreRegistered(t *testing.T) {
 	tests := []struct {
 		id          uint32
@@ -92,11 +106,11 @@ func TestDomainBoundaryMessagesAreRegistered(t *testing.T) {
 			fullName: "xgc.v1.Empty", message: &xgcv1.Empty{},
 		},
 		{
-			id: 4001, version: 1, fingerprint: 765294016423927346,
+			id: 4001, version: 2, fingerprint: 1932893837531035663,
 			fullName: "xgc.robot.v1.RobotAdapterSpec", message: &robotv1.RobotAdapterSpec{},
 		},
 		{
-			id: 4002, version: 1, fingerprint: 16590502263969859830,
+			id: 4002, version: 1, fingerprint: 17079265246794908236,
 			fullName: "xgc.robot.v1.RobotMessage", message: &robotv1.RobotMessage{},
 		},
 	}

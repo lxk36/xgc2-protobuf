@@ -14,9 +14,10 @@ message RobotMessage {
 }
 
 message ChannelGrant {
+  reserved 3;
+
   string channel_id = 1;
   bool enabled = 2;
-  map<string, string> parameters = 3;
 }
 
 message RobotResource {

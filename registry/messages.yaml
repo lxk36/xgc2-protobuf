@@ -96,7 +96,7 @@ messages:
 
   - id: 4001
     type: xgc.robot.v1.RobotAdapterSpec
-    version: 1
+    version: 2
     roles: [configuration]
 
   - id: 4002
