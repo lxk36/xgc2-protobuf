@@ -38,6 +38,15 @@ func TestTerminalDigestDomainSeparatesMessageTypes(t *testing.T) {
 	}
 }
 
+func TestOperationUncertainHasAnExactTerminalPhase(t *testing.T) {
+	if OperationPhase_OPERATION_PHASE_UNCERTAIN.Number() != 9 {
+		t.Fatalf("uncertain operation phase=%d, want 9", OperationPhase_OPERATION_PHASE_UNCERTAIN.Number())
+	}
+	if ErrorClass_ERROR_CLASS_UNCERTAIN == ErrorClass_ERROR_CLASS_UNSPECIFIED {
+		t.Fatal("uncertain operation error class is unspecified")
+	}
+}
+
 const (
 	testInstanceID        = "adapter-instance-test"
 	testSessionID         = "adapter-session-test"

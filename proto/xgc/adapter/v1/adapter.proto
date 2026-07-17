@@ -68,6 +68,10 @@ enum OperationPhase {
   OPERATION_PHASE_FAILED = 6;
   OPERATION_PHASE_EXPIRED = 7;
   OPERATION_PHASE_CANCELLED = 8;
+  // The native side effect may have committed, but its result could not be
+  // observed. This is terminal and must never be collapsed into FAILED,
+  // because callers may not safely retry a non-idempotent operation.
+  OPERATION_PHASE_UNCERTAIN = 9;
 }
 
 message AdapterError {

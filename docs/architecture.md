@@ -88,10 +88,11 @@ or structured error.
 
 An operation uses the same work context and reports accepted, started,
 progress, and one terminal phase. Side-effecting delivery can become
-`ERROR_CLASS_UNCERTAIN` after dispatch. Deadline, rejected,
-resource-exhausted, cancellation, transient, and permanent failures remain
-machine distinguishable. Durable operation truth belongs to the Host; an
-Adapter may retain only a bounded replay cache.
+`OPERATION_PHASE_UNCERTAIN` with `ERROR_CLASS_UNCERTAIN` after dispatch; that
+terminal is distinct from a known failure and forbids blind retry. Deadline,
+rejected, resource-exhausted, cancellation, transient, and permanent failures
+remain machine distinguishable. Durable operation truth belongs to the Host;
+an Adapter may retain only a bounded replay cache.
 
 Unary and terminal operation frames remain Adapter-owned until the Host has
 committed the exact terminal result to its durable invocation ledger and sent a
