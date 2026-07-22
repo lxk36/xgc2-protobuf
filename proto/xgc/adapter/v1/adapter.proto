@@ -117,6 +117,11 @@ message CapabilityEndpointContract {
   uint32 default_timeout_ms = 10;
   uint32 maximum_timeout_ms = 11;
   EndpointLimits limits = 12;
+  // volatile_supported explicitly opts this unary endpoint into the
+  // non-durable Runtime pulse path. It is reserved for short, repeatable
+  // keepalive/dead-man refreshes whose durable authority was established by a
+  // separate audited operation; normal invocations remain durable.
+  bool volatile_supported = 13;
 }
 
 message CapabilityContract {
@@ -316,6 +321,10 @@ message WorkContext {
   // to a capability_id that may have multiple installed versions.
   uint32 contract_version = 9;
   string contract_digest = 10;
+  // volatile is set only for an endpoint whose immutable contract opted into
+  // volatile_supported. Its terminal acknowledgement is connection-local and
+  // must not be retained for replay after the Runtime Link session is lost.
+  bool volatile = 11;
 }
 
 message UnaryRequest {
