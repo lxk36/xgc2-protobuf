@@ -132,7 +132,7 @@ The smoke test:
   workflow, telemetry, UI, and related asset/run concepts) from the complete
   Adapter Runtime Link surface.
 
-CI also runs `buf breaking` inside a protocol epoch. Product version `0.5.0-1`
+CI also runs `buf breaking` inside a protocol epoch. Product version `0.5.0-2`
 starts a deliberate pre-1.0 breaking epoch for Runtime Link protocol v2 and its
 Host-initiated, source-only stream contract.
 
