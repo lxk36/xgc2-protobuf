@@ -105,6 +105,9 @@ message EndpointLimits {
 // registration may report only endpoints already granted by the prepared
 // Adapter definition.
 message CapabilityEndpointContract {
+  reserved 13;
+  reserved "volatile_supported";
+
   string endpoint_id = 1;
   InteractionMode interaction_mode = 2;
   xgc.v1.SchemaReference input_schema = 3;
@@ -117,11 +120,6 @@ message CapabilityEndpointContract {
   uint32 default_timeout_ms = 10;
   uint32 maximum_timeout_ms = 11;
   EndpointLimits limits = 12;
-  // volatile_supported explicitly opts this unary endpoint into the
-  // non-durable Runtime pulse path. It is reserved for short, repeatable
-  // keepalive/dead-man refreshes whose durable authority was established by a
-  // separate audited operation; normal invocations remain durable.
-  bool volatile_supported = 13;
 }
 
 message CapabilityContract {
@@ -309,6 +307,9 @@ message ControlResponse {
 }
 
 message WorkContext {
+  reserved 11;
+  reserved "volatile";
+
   string work_id = 1;
   string capability_id = 2;
   string endpoint_id = 3;
@@ -321,10 +322,6 @@ message WorkContext {
   // to a capability_id that may have multiple installed versions.
   uint32 contract_version = 9;
   string contract_digest = 10;
-  // volatile is set only for an endpoint whose immutable contract opted into
-  // volatile_supported. Its terminal acknowledgement is connection-local and
-  // must not be retained for replay after the Runtime Link session is lost.
-  bool volatile = 11;
 }
 
 message UnaryRequest {
