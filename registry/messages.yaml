@@ -79,6 +79,11 @@ messages:
     version: 1
     roles: [diagnostic]
 
+  - id: 3102
+    type: xgc.semantic.ground.v1.ChassisStatus
+    version: 1
+    roles: [telemetry]
+
   - id: 3201
     type: xgc.semantic.aerial.v1.ArmRequest
     version: 1

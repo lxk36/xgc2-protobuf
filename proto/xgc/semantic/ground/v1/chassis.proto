@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package xgc.semantic.ground.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/ground/v1;groundv1";
+
+message ChassisStatus {
+  enum ControlMode {
+    CONTROL_MODE_UNSPECIFIED = 0;
+    CONTROL_MODE_REMOTE = 1;
+    CONTROL_MODE_COMMAND_CAN = 2;
+    CONTROL_MODE_COMMAND_UART = 3;
+  }
+
+  ControlMode control_mode = 1;
+  uint32 native_control_mode = 2;
+}
