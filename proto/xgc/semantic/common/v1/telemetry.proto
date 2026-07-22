@@ -21,6 +21,19 @@ message VelocityEstimate {
   repeated double covariance = 4;
 }
 
+// Scalar translational speed derived by the producer in frame_id. The value
+// may be signed when it represents velocity along a directed frame axis.
+message SpeedEstimate {
+  string frame_id = 1;
+  double meters_per_second = 2;
+}
+
+// Scalar Euclidean distance between two positions in the same frame.
+message DistanceEstimate {
+  string frame_id = 1;
+  double meters = 2;
+}
+
 message ImuEstimate {
   string frame_id = 1;
   Quaternion orientation = 2;

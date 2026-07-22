@@ -3,6 +3,7 @@
 from xgc.registry.v1 import message_registry
 from xgc.robot.v1 import message_pb2 as robot_message_pb2
 from xgc.semantic.aerial.v1 import control_pb2
+from xgc.semantic.ground.v1 import control_pb2 as ground_control_pb2
 from xgc.v1 import message_pb2
 
 
@@ -58,6 +59,9 @@ def main():
     assert isinstance(
         message_registry.new_message(3203), control_pb2.AutopilotRebootRequest
     )
+    ground_intent = message_registry.new_message(3204)
+    assert isinstance(ground_intent, ground_control_pb2.MotionIntentRequest)
+    assert message_registry.METADATA[3204]["fingerprint"] == 13602409479439522314
     assert message_registry.new_message(5001) is None
     assert message_registry.new_message(999999) is None
     print(

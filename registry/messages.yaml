@@ -44,6 +44,16 @@ messages:
     version: 1
     roles: [telemetry]
 
+  - id: 2006
+    type: xgc.semantic.common.v1.SpeedEstimate
+    version: 1
+    roles: [telemetry]
+
+  - id: 2007
+    type: xgc.semantic.common.v1.DistanceEstimate
+    version: 1
+    roles: [telemetry]
+
   - id: 2010
     type: xgc.semantic.common.v1.ChannelHealth
     version: 1
@@ -96,6 +106,11 @@ messages:
 
   - id: 3203
     type: xgc.semantic.aerial.v1.AutopilotRebootRequest
+    version: 1
+    roles: [request]
+
+  - id: 3204
+    type: xgc.semantic.ground.v1.MotionIntentRequest
     version: 1
     roles: [request]
 

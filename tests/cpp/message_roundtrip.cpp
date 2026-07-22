@@ -6,6 +6,7 @@
 #include "xgc/registry/v1/message_registry.hpp"
 #include "xgc/robot/v1/message.pb.h"
 #include "xgc/semantic/aerial/v1/control.pb.h"
+#include "xgc/semantic/ground/v1/control.pb.h"
 #include "xgc/v1/message.pb.h"
 
 int main() {
@@ -68,6 +69,11 @@ int main() {
              xgc::registry::v1::newMessage(3201).get()) != nullptr);
   assert(dynamic_cast<xgc::semantic::aerial::v1::AutopilotRebootRequest*>(
              xgc::registry::v1::newMessage(3203).get()) != nullptr);
+  const auto* ground_intent_metadata = xgc::registry::v1::findMessage(3204);
+  assert(ground_intent_metadata != nullptr);
+  assert(ground_intent_metadata->fingerprint == 13602409479439522314ULL);
+  assert(dynamic_cast<xgc::semantic::ground::v1::MotionIntentRequest*>(
+             xgc::registry::v1::newMessage(3204).get()) != nullptr);
   assert(xgc::registry::v1::newMessage(5001) == nullptr);
 
   std::cout << "cpp roundtrip ok: " << routed.robot_id() << " " << routed.channel_id()

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package xgc.semantic.ground.v1;
+
+option go_package = "xgc2/protocols/xgc/semantic/ground/v1;groundv1";
+
+// MotionIntentRequest carries the operator's discrete Scout driving intent.
+// The Robot Profile constrains gear to 1..3 and both signed intent axes to
+// -1..1 before Core encodes this message for the Adapter.
+message MotionIntentRequest {
+  uint32 gear = 1;
+  int32 longitudinal = 2;
+  int32 yaw = 3;
+}

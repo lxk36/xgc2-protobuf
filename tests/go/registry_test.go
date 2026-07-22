@@ -7,6 +7,7 @@ import (
 	adapterv1 "xgc2/protocols/xgc/adapter/v1"
 	robotv1 "xgc2/protocols/xgc/robot/v1"
 	aerialv1 "xgc2/protocols/xgc/semantic/aerial/v1"
+	groundv1 "xgc2/protocols/xgc/semantic/ground/v1"
 	xgcv1 "xgc2/protocols/xgc/v1"
 )
 
@@ -133,7 +134,7 @@ func TestDomainBoundaryMessagesAreRegistered(t *testing.T) {
 	}
 }
 
-func TestAerialOperationMessagesAreRegistered(t *testing.T) {
+func TestOperationMessagesAreRegistered(t *testing.T) {
 	tests := []struct {
 		id      uint32
 		message proto.Message
@@ -141,6 +142,7 @@ func TestAerialOperationMessagesAreRegistered(t *testing.T) {
 		{id: 3201, message: &aerialv1.ArmRequest{Armed: true}},
 		{id: 3202, message: &aerialv1.ModeRequest{}},
 		{id: 3203, message: &aerialv1.AutopilotRebootRequest{}},
+		{id: 3204, message: &groundv1.MotionIntentRequest{Gear: 2, Longitudinal: 1, Yaw: -1}},
 	}
 	for _, test := range tests {
 		created, ok := New(test.id)
